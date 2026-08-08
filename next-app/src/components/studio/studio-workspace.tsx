@@ -2,18 +2,22 @@
 
 import React, { useState, useCallback, useEffect } from "react";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
+import { GlobalHeader } from "../global-header";
 import { StudioProject, ScriptSection } from "@/lib/types/studio";
+import { ActiveProviderBadge } from "../ActiveProviderBadge";
 import { KnowledgePanel } from "./panels/knowledge-panel";
 import { ScriptEditorPanel } from "./panels/script-editor-panel";
 import { AssistantPanel } from "./panels/assistant-panel";
 import { StoryboardPanel } from "./panels/storyboard-panel";
 import { ProductionPanel } from "./panels/production-panel";
 import { ThumbnailPanel } from "./panels/thumbnail-panel";
-import { ExportPanel } from "./panels/export-panel";
+import ExportPanel from "./panels/export-panel";
 import { VersionsPanel } from "./panels/versions-panel";
+import { IntelligencePanel } from "./panels/intelligence-panel";
 import { useDebounce } from "@/hooks/use-debounce";
 import { toast } from "sonner";
-import { FileText, Library, Clapperboard, FileJson, Image as ImageIcon, History, Sparkles, Download, X } from "lucide-react";
+import { FileText, Library, Clapperboard, FileJson, Image as ImageIcon, History, Sparkles, Download, X, Brain } from "lucide-react";
+import { AIJobManagerProvider } from "@/lib/intelligence/job-manager-context";
 
 interface StudioWorkspaceProps {
   libraryItems: any[];
@@ -45,6 +49,7 @@ const TOOL_MODULES = [
   { id: "research", label: "Library", icon: Library, desc: "Research and knowledge base." },
   { id: "versions", label: "Version History", icon: History, desc: "Restore previous drafts." },
   { id: "assistant", label: "AI Assistant", icon: Sparkles, desc: "Chat with the AI." },
+  { id: "intelligence", label: "Intelligence", icon: Brain, desc: "Production metrics and flow analysis." },
 ];
 
 export function StudioWorkspace({ libraryItems }: StudioWorkspaceProps) {
@@ -52,35 +57,28 @@ export function StudioWorkspace({ libraryItems }: StudioWorkspaceProps) {
   const [isSaving, setIsSaving] = useState(false);
   const [mounted, setMounted] = useState(false);
   
-  // Max 3 active modules
-  const [activeModules, setActiveModules] = useState<string[]>(["script", "storyboard", "assistant"]);
+  // Only one active module at a time
+  const [activeModules, setActiveModules] = useState<string[]>(["script"]);
 
   // Debounced auto-save
-  const debouncedProject = useDebounce(project, 3000);
+  const debouncedProject = useDebounce(project, 5000);
 
   // Load initial draft on mount
   useEffect(() => {
     setMounted(true);
-    const loadDraft = async () => {
+    const loadDraft = () => {
       try {
-        const res = await fetch("/api/studio/load");
-        const data = await res.json();
-        
-        let loadedProject = data.project;
-        if (typeof loadedProject === "string") {
-          try {
-            loadedProject = JSON.parse(loadedProject);
-          } catch (e) {
-            console.error("Failed to parse project JSON");
+        const localDraft = localStorage.getItem("studio_project_draft");
+        if (localDraft) {
+          const parsed = JSON.parse(localDraft);
+          if (parsed && Array.isArray(parsed.sections)) {
+            setProject(parsed);
+            toast.success("Draft recovered successfully.");
+            return;
           }
         }
-        
-        if (loadedProject && Array.isArray(loadedProject.sections)) {
-          setProject(loadedProject);
-          toast.success("Draft recovered successfully.");
-        }
       } catch (err) {
-        console.error("Failed to load draft", err);
+        console.error("Failed to load local draft", err);
       }
     };
     loadDraft();
@@ -90,21 +88,23 @@ export function StudioWorkspace({ libraryItems }: StudioWorkspaceProps) {
     if (debouncedProject.id === DEFAULT_PROJECT.id && debouncedProject.sections[0].content === "") {
       return; // skip initial empty save
     }
-    const saveToDb = async () => {
+    const saveToLocal = async () => {
       setIsSaving(true);
       try {
+        localStorage.setItem("studio_project_draft", JSON.stringify(debouncedProject));
+        // Also dispatch to background API to create version history snapshots
         await fetch("/api/studio/save", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ project: debouncedProject })
+          body: JSON.stringify({ project: debouncedProject }),
         });
       } catch (err) {
         console.error("Auto-save failed", err);
       } finally {
-        setIsSaving(false);
+        setTimeout(() => setIsSaving(false), 500);
       }
     };
-    saveToDb();
+    saveToLocal();
   }, [debouncedProject]);
 
   const updateSection = useCallback((sectionId: string, updates: Partial<ScriptSection>) => {
@@ -114,6 +114,13 @@ export function StudioWorkspace({ libraryItems }: StudioWorkspaceProps) {
       updatedAt: new Date().toISOString()
     }));
   }, []);
+
+  // Pure helper to update a section by ID without side effects – used for immutable updates
+  const updateSectionById = (project: StudioProject, sectionId: string, updates: Partial<ScriptSection>): StudioProject => ({
+    ...project,
+    sections: project.sections.map(s => s.id === sectionId ? { ...s, ...updates } : s),
+    updatedAt: new Date().toISOString()
+  });
 
   const addSection = useCallback((type: string, index: number) => {
     setProject(prev => {
@@ -155,17 +162,7 @@ export function StudioWorkspace({ libraryItems }: StudioWorkspaceProps) {
   }, []);
 
   const toggleModule = (id: string) => {
-    setActiveModules(prev => {
-      if (prev.includes(id)) {
-        if (prev.length === 1) return prev; // Don't close the last panel
-        return prev.filter(m => m !== id);
-      }
-      if (prev.length >= 3) {
-        // Replace the last panel if we already have 3
-        return [...prev.slice(0, 2), id];
-      }
-      return [...prev, id];
-    });
+    setActiveModules([id]);
   };
 
   const renderModule = (id: string) => {
@@ -186,6 +183,8 @@ export function StudioWorkspace({ libraryItems }: StudioWorkspaceProps) {
         return <AssistantPanel project={project} setProject={setProject} />;
       case "export":
         return <ExportPanel project={project} />;
+      case "intelligence":
+        return <IntelligencePanel project={project} setProject={setProject} />;
       default:
         return null;
     }
@@ -193,29 +192,18 @@ export function StudioWorkspace({ libraryItems }: StudioWorkspaceProps) {
 
 const ALL_MODULES = [...WORKFLOW_MODULES, ...TOOL_MODULES];
 
+  if (!mounted) return null;
+
   return (
-    <div className="flex flex-col h-screen w-full overflow-hidden bg-background">
+    <AIJobManagerProvider project={project} setProject={setProject}>
+      <div className="flex flex-col h-screen w-full overflow-hidden bg-background">
       {/* Global Header */}
-      <header className="h-14 border-b border-border bg-card flex items-center px-6 gap-6 shrink-0 z-20 shadow-sm">
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded bg-primary flex items-center justify-center">
-            <span className="text-xs font-black text-primary-foreground">Y</span>
-          </div>
-          <span className="font-black text-base tracking-tight">YVIE</span>
-          <span className="text-xs text-muted-foreground font-mono ml-1">Creator Studio</span>
-        </div>
-        <nav className="flex items-center gap-1 ml-auto">
-          <a href="/dashboard" className="px-3 py-1.5 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors">Dashboard</a>
-          <a href="/wizard" className="px-3 py-1.5 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors">Wizard AI</a>
-          <a href="/studio" className="px-3 py-1.5 text-sm font-medium bg-primary text-primary-foreground rounded-md">Creator Studio</a>
-          <a href="/script-prompt-generator" className="px-3 py-1.5 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors">Prompt Generator</a>
-        </nav>
-      </header>
+      <GlobalHeader />
 
       <div className="flex flex-1 overflow-hidden w-full">
         {/* Left Global Sidebar for Creator Studio */}
         <div className="w-72 flex-shrink-0 border-r bg-muted/10 flex flex-col py-6 overflow-y-auto">
-          <div className="px-4 mb-4">
+          <div className="px-4 mb-4 flex items-center justify-between">
             <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider">Workflow</h3>
           </div>
           <div className="flex flex-col space-y-2 px-3">
@@ -292,7 +280,7 @@ const ALL_MODULES = [...WORKFLOW_MODULES, ...TOOL_MODULES];
               {activeModules.flatMap((moduleId, index) => {
                 const mod = ALL_MODULES.find(m => m.id === moduleId);
                 const panel = (
-                    <ResizablePanel key={`${moduleId}-panel`} defaultSize={100 / activeModules.length} minSize={20}>
+                    <ResizablePanel key={`${moduleId}-panel`} id={`${moduleId}-panel`} order={index} defaultSize={100 / activeModules.length} minSize={20}>
                       <div className="h-full flex flex-col border-r border-border/50 shadow-sm bg-background last:border-r-0 m-2 rounded-xl overflow-hidden ring-1 ring-border/50">
                         {/* Panel Header */}
                         <div className="h-12 border-b flex items-center justify-between px-4 bg-card shrink-0">
@@ -330,5 +318,6 @@ const ALL_MODULES = [...WORKFLOW_MODULES, ...TOOL_MODULES];
         </div>
       </div>
     </div>
+    </AIJobManagerProvider>
   );
 }

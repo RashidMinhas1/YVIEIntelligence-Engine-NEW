@@ -4,15 +4,15 @@ import React from "react";
 import { StudioProject } from "@/lib/types/studio";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Download, FileJson, FileText } from "lucide-react";
+import { Download, FileJson, FileText, Table, FileCode } from "lucide-react";
 import { toast } from "sonner";
 
 interface ExportPanelProps {
   project: StudioProject;
 }
 
-export function ExportPanel({ project }: ExportPanelProps) {
-  const handleExport = async (format: "md" | "txt" | "json" | "docx" | "pdf") => {
+export default function ExportPanel({ project }: ExportPanelProps) {
+  const handleExport = async (format: "md" | "txt" | "json" | "docx" | "pdf" | "csv" | "html") => {
     if (format === "pdf") {
       try {
         const { jsPDF } = await import("jspdf");
@@ -64,7 +64,32 @@ export function ExportPanel({ project }: ExportPanelProps) {
           });
         }
 
-        doc.save(`${project.title?.replace(/\s+/g, '_') || 'project'}_production.pdf`);
+        if (project.sections && project.sections.length > 0) {
+          doc.addPage();
+          y = 20;
+          doc.setFontSize(14);
+          doc.text("Storyboard Scenes", 20, y);
+          y += 8;
+          doc.setFontSize(10);
+          project.sections.forEach(s => {
+            doc.text(`Scene: ${s.type || "N/A"}`, 20, y);
+            y += 5;
+            doc.text(`Title: ${s.title || "Untitled"}`, 25, y);
+            y += 5;
+            const contentLines = doc.splitTextToSize(`Content: ${s.content}`, 170);
+            doc.text(contentLines, 25, y);
+            y += (contentLines.length * 4) + 2;
+            
+            if (s.visualNotes) {
+                const visualLines = doc.splitTextToSize(`Visual: ${s.visualNotes}`, 170);
+                doc.text(visualLines, 25, y);
+                y += (visualLines.length * 4) + 2;
+            }
+            if (y > 270) { doc.addPage(); y = 20; }
+          });
+        }
+
+        doc.save(`${project.title?.replace(/\s+/g, '_') || 'project'}_full.pdf`);
         toast.success("Exported as PDF");
         return;
       } catch (err) {
@@ -112,12 +137,24 @@ export function ExportPanel({ project }: ExportPanelProps) {
            });
         }
 
+        if (project.sections && project.sections.length > 0) {
+            docChildren.push(new Paragraph({ text: "Storyboard Scenes", heading: HeadingLevel.HEADING_1, pageBreakBefore: true }));
+            project.sections.forEach(s => {
+                docChildren.push(new Paragraph({ text: `Scene: ${s.type || "N/A"} - ${s.title || "Untitled"}`, heading: HeadingLevel.HEADING_2 }));
+                docChildren.push(new Paragraph({ text: `Script Chunk: ${s.content}`, bullet: { level: 0 } }));
+                if (s.visualNotes) docChildren.push(new Paragraph({ text: `Visuals: ${s.visualNotes}`, bullet: { level: 0 } }));
+                if (s.cameraAngle) docChildren.push(new Paragraph({ text: `Camera: ${s.cameraAngle}`, bullet: { level: 0 } }));
+                if (s.brollSuggestions) docChildren.push(new Paragraph({ text: `B-Roll: ${s.brollSuggestions.join(", ")}`, bullet: { level: 0 } }));
+                docChildren.push(new Paragraph({ text: "", spacing: { after: 200 } }));
+            });
+        }
+
         const doc = new Document({ sections: [{ properties: {}, children: docChildren }] });
         const blob = await Packer.toBlob(doc);
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = `${project.title?.replace(/\s+/g, '_') || 'project'}_production.docx`;
+        a.download = `${project.title?.replace(/\s+/g, '_') || 'project'}_full.docx`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -134,7 +171,7 @@ export function ExportPanel({ project }: ExportPanelProps) {
     let data = "";
     if (format === "json") {
       data = JSON.stringify(project.production || {}, null, 2);
-    } else {
+    } else if (format === "md" || format === "txt") {
       const prod = project.production || { thumbnails: [], titles: [], chapters: [], editingChecklist: [] };
       const lines: string[] = [];
       lines.push(`# Production Package: ${project.title}`);
@@ -169,15 +206,66 @@ export function ExportPanel({ project }: ExportPanelProps) {
           lines.push("");
         });
       }
-
+      if (project.sections && project.sections.length > 0) {
+        lines.push("## Storyboard Scenes");
+        project.sections.forEach(s => {
+            lines.push(`### ${s.type || "Scene"} - ${s.title || "Untitled"}`);
+            lines.push(`**Script Chunk:** ${s.content}`);
+            if (s.visualNotes) lines.push(`**Visuals:** ${s.visualNotes}`);
+            if (s.cameraAngle) lines.push(`**Camera:** ${s.cameraAngle}`);
+            if (s.brollSuggestions) lines.push(`**B-Roll:** ${s.brollSuggestions.join(", ")}`);
+            lines.push("");
+        });
+      }
       data = lines.join("\n");
+    } else if (format === "csv") {
+      const headers = ["Scene Type", "Title", "Script Chunk", "Visuals", "Camera", "B-Roll"];
+      const rows = (project.sections || []).map(s => {
+        return [
+          s.type || "",
+          s.title || "",
+          (s.content || "").replace(/"/g, '""'),
+          (s.visualNotes || "").replace(/"/g, '""'),
+          (s.cameraAngle || "").replace(/"/g, '""'),
+          (s.brollSuggestions || []).join(", ").replace(/"/g, '""')
+        ].map(cell => `"${cell}"`).join(",");
+      });
+      data = [headers.join(","), ...rows].join("\n");
+    } else if (format === "html") {
+      data = `
+<!DOCTYPE html>
+<html>
+<head>
+<title>${project.title || "Project"}</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 800px; margin: 0 auto; padding: 2rem; line-height: 1.6; }
+  h1, h2, h3 { color: #333; }
+  .scene { border: 1px solid #ddd; padding: 1rem; margin-bottom: 1rem; border-radius: 8px; }
+</style>
+</head>
+<body>
+  <h1>${project.title || "Project"}</h1>
+  <h2>Production Package</h2>
+  <div>${project.production?.description?.full || ""}</div>
+  <h2>Storyboard Scenes</h2>
+  ${(project.sections || []).map(s => `
+    <div class="scene">
+      <h3>${s.type || "Scene"} - ${s.title || "Untitled"}</h3>
+      <p><strong>Script:</strong> ${s.content}</p>
+      <p><strong>Visuals:</strong> ${s.visualNotes}</p>
+      <p><strong>Camera:</strong> ${s.cameraAngle}</p>
+    </div>
+  `).join("")}
+</body>
+</html>
+      `.trim();
     }
 
     const blob = new Blob([data], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `${project.title.replace(/\s+/g, '_')}_production.${format}`;
+    a.download = `${project.title.replace(/\s+/g, '_')}_full.${format}`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -242,9 +330,28 @@ export function ExportPanel({ project }: ExportPanelProps) {
                 <span className="text-xs text-muted-foreground mt-1 font-medium">Standard PDF format</span>
               </div>
             </Button>
+            <Button variant="outline" className="h-40 flex flex-col gap-4 border border-border/60 rounded-3xl bg-card shadow-sm hover:shadow-md hover:border-green-500/40 transition-all group" onClick={() => handleExport("csv")}>
+              <div className="w-12 h-12 rounded-full bg-green-500/10 flex items-center justify-center group-hover:scale-110 transition-transform">
+                <Table className="w-6 h-6 text-green-500" />
+              </div>
+              <div className="flex flex-col items-center">
+                <span className="font-bold text-base text-foreground">CSV Spreadsheet</span>
+                <span className="text-xs text-muted-foreground mt-1 font-medium">For Excel & Google Sheets</span>
+              </div>
+            </Button>
+            <Button variant="outline" className="h-40 flex flex-col gap-4 border border-border/60 rounded-3xl bg-card shadow-sm hover:shadow-md hover:border-orange-500/40 transition-all group" onClick={() => handleExport("html")}>
+              <div className="w-12 h-12 rounded-full bg-orange-500/10 flex items-center justify-center group-hover:scale-110 transition-transform">
+                <FileCode className="w-6 h-6 text-orange-500" />
+              </div>
+              <div className="flex flex-col items-center">
+                <span className="font-bold text-base text-foreground">HTML Page</span>
+                <span className="text-xs text-muted-foreground mt-1 font-medium">Viewable in any browser</span>
+              </div>
+            </Button>
           </div>
         </div>
       </ScrollArea>
     </div>
   );
 }
+

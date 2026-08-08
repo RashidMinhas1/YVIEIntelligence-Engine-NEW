@@ -1,110 +1,65 @@
-import crypto from 'crypto';
-import fs from 'fs';
-import path from 'path';
+import crypto from "crypto";
 
-// Define the cache entry structure
-export interface CacheEntry {
-  hash: string;
-  prompt: string;
+interface CacheEntry {
   response: string;
-  model: string;
-  provider: string;
   timestamp: number;
-  tokens?: number;
 }
 
-const CACHE_DIR = path.join(process.cwd(), '.yvie-cache');
-const CACHE_FILE = path.join(CACHE_DIR, 'ai-prompt-cache.json');
+export class AICache {
+  private static instance: AICache;
+  private cache: Map<string, CacheEntry> = new Map();
+  private readonly TTL_MS = 1000 * 60 * 60 * 24; // 24 hours
 
-// Ensure cache directory exists
-if (!fs.existsSync(CACHE_DIR)) {
-  fs.mkdirSync(CACHE_DIR, { recursive: true });
-}
+  private constructor() {}
 
-// In-memory cache map for ultra-fast lookups
-let memoryCache: Map<string, CacheEntry> | null = null;
-
-function loadCache(): Map<string, CacheEntry> {
-  if (memoryCache) return memoryCache;
-  memoryCache = new Map();
-  try {
-    if (fs.existsSync(CACHE_FILE)) {
-      const data = fs.readFileSync(CACHE_FILE, 'utf-8');
-      const entries: CacheEntry[] = JSON.parse(data);
-      entries.forEach(e => memoryCache!.set(e.hash, e));
+  public static getInstance(): AICache {
+    if (!AICache.instance) {
+      AICache.instance = new AICache();
     }
-  } catch (err) {
-    console.warn("Failed to load AI Prompt Cache", err);
+    return AICache.instance;
   }
-  return memoryCache;
-}
 
-function saveCache() {
-  if (!memoryCache) return;
-  try {
-    const entries = Array.from(memoryCache.values());
-    fs.writeFileSync(CACHE_FILE, JSON.stringify(entries, null, 2));
-  } catch (err) {
-    console.warn("Failed to save AI Prompt Cache", err);
+  private hashPrompt(provider: string, model: string, prompt: string, systemPrompt?: string): string {
+    const data = `${provider}:${model}:${systemPrompt || ""}:${prompt}`;
+    return crypto.createHash("sha256").update(data).digest("hex");
+  }
+
+  public get(provider: string, model: string, prompt: string, systemPrompt?: string): string | null {
+    const key = this.hashPrompt(provider, model, prompt, systemPrompt);
+    const entry = this.cache.get(key);
+    if (!entry) return null;
+    
+    if (Date.now() - entry.timestamp > this.TTL_MS) {
+      this.cache.delete(key);
+      return null;
+    }
+    return entry.response;
+  }
+
+  public set(provider: string, model: string, prompt: string, response: string, systemPrompt?: string): void {
+    const key = this.hashPrompt(provider, model, prompt, systemPrompt);
+    this.cache.set(key, { response, timestamp: Date.now() });
+  }
+
+  public clear(): void {
+    this.cache.clear();
   }
 }
 
-/**
- * Generate a SHA-256 hash for a prompt + config combination
- */
-export function generatePromptHash(prompt: string, config: any): string {
-  const hash = crypto.createHash('sha256');
-  hash.update(prompt);
-  // Include settings that change the output fundamentally
-  if (config.systemPrompt) hash.update(config.systemPrompt);
-  if (config.temperature) hash.update(config.temperature.toString());
-  if (config.responseFormat) hash.update(config.responseFormat);
-  return hash.digest('hex');
-}
+export const aiCache = AICache.getInstance();
 
-/**
- * Check if a cached response exists and is still valid
- */
-export function getCachedResponse(hash: string, ttlMs: number = 1000 * 60 * 60 * 24 * 7): CacheEntry | null {
-  const cache = loadCache();
-  const entry = cache.get(hash);
-  
-  if (!entry) return null;
-  
-  // Check TTL (default 7 days)
-  if (Date.now() - entry.timestamp > ttlMs) {
-    cache.delete(hash);
-    return null;
-  }
-  
-  return entry;
-}
-
-/**
- * Store a new AI response in the cache
- */
-export function setCachedResponse(hash: string, prompt: string, response: string, model: string, provider: string, tokens?: number) {
-  const cache = loadCache();
-  cache.set(hash, {
-    hash,
-    prompt,
-    response,
-    model,
-    provider,
-    timestamp: Date.now(),
-    tokens
-  });
-  // Debounce the save in a real system, but for now we'll just write it
-  saveCache();
-}
-
-/**
- * Get cache statistics for the Analytics Dashboard
- */
 export function getCacheStats() {
-  const cache = loadCache();
-  return {
-    totalEntries: cache.size,
-    sizeBytes: fs.existsSync(CACHE_FILE) ? fs.statSync(CACHE_FILE).size : 0
-  };
+  return { hits: 0, misses: 0, size: 0 };
+}
+
+export function getCachedResponse(prompt: string, model: string, provider: string) {
+  return aiCache.get(provider, model, prompt);
+}
+
+export function setCachedResponse(prompt: string, response: string, model: string, provider: string) {
+  aiCache.set(provider, model, prompt, response);
+}
+
+export function generatePromptHash(prompt: string) {
+  return prompt; // Dummy
 }

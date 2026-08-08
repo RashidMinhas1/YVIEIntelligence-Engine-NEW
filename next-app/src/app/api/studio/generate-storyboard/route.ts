@@ -12,6 +12,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     script = body.script;
     const { theme, sceneCount } = body;
+    process.env.OPENROUTER_MODEL = "google/gemini-2.5-flash";
 
     if (!script || !theme) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
@@ -24,90 +25,23 @@ export async function POST(request: Request) {
     return NextResponse.json(data);
   } catch (error: any) {
     console.error("Storyboard generation failed:", error);
-    console.warn("AI generation failed, returning mock storyboard data as fallback.");
-    // Fallback: Split the user's script in half so they don't lose their text
-    let scriptPart1 = "Scene 1 content...";
-    let scriptPart2 = "Scene 2 content...";
-    if (script) {
-      if (Array.isArray(script)) {
-        if (script.length > 0) {
-          const half = Math.ceil(script.length / 2);
-          scriptPart1 = script.slice(0, half).join(" ");
-          scriptPart2 = script.slice(half).join(" ");
-        }
-      } else if (typeof script === "string") {
-        const sentences = splitScriptIntoSentences(script);
-        if (sentences.length > 0) {
-          const half = Math.ceil(sentences.length / 2);
-          scriptPart1 = sentences.slice(0, half).join(" ");
-          scriptPart2 = sentences.slice(half).join(" ");
-        } else {
-          const half = Math.floor(script.length / 2);
-          scriptPart1 = script.slice(0, half);
-          scriptPart2 = script.slice(half);
-        }
-      }
+    
+    // Determine appropriate status code
+    let statusCode = 500;
+    const errorMsg = error.message || String(error);
+    
+    if (errorMsg.includes("exceeds safety threshold") || errorMsg.includes("Context Limit") || errorMsg.includes("400")) {
+      statusCode = 400;
+    } else if (errorMsg.includes("429") || errorMsg.includes("RATE_LIMIT")) {
+      statusCode = 429;
+    } else if (errorMsg.includes("502") || errorMsg.includes("503") || errorMsg.includes("504")) {
+      statusCode = 502;
     }
 
-    return NextResponse.json({
-      scenes: [
-        {
-          sceneGoal: "Establish the premise",
-          content: scriptPart1,
-          brollSuggestions: ["Cinematic wide shot", "Slow pan across landscape"],
-          visualNotes: "Dark, moody lighting with high contrast.",
-          cameraAngle: "Wide Angle",
-          cameraLens: "24mm",
-          cameraMovement: "Slow Dolly In",
-          composition: "Rule of Thirds",
-          lighting: "Low Key",
-          colorPalette: "Teal and Orange",
-          mood: "Mysterious",
-          emotion: "Curiosity",
-          environment: "Abandoned warehouse",
-          background: "Shadowy corners",
-          characterNotes: "Silhouette only",
-          onScreenText: "The beginning...",
-          subtitleStyle: "Minimalist white",
-          motionGraphics: "Subtle dust particles",
-          zoomSuggestions: "Slow digital zoom",
-          transitionNotes: "Fade to black",
-          editingNotes: "Keep cuts slow and deliberate",
-          soundEffects: "Low frequency drone",
-          musicNotes: "Ambient tension",
-          aiPrompt: "Cinematic wide shot of an abandoned warehouse, dark moody lighting, teal and orange color grading, mysterious atmosphere, highly detailed, 8k --ar 16:9",
-          negativePrompt: "bright, cheerful, daylight, low quality, blurry",
-          thumbnailConsistency: "Maintain high contrast lighting"
-        },
-        {
-          sceneGoal: "Introduce the conflict",
-          content: scriptPart2,
-          brollSuggestions: ["Close up of hands", "Fast montage"],
-          visualNotes: "Brighter, chaotic lighting.",
-          cameraAngle: "Close Up",
-          cameraLens: "50mm",
-          cameraMovement: "Handheld",
-          composition: "Center framed",
-          lighting: "Harsh directional",
-          colorPalette: "Desaturated",
-          mood: "Tense",
-          emotion: "Anxiety",
-          environment: "Cluttered desk",
-          background: "Scattered papers",
-          characterNotes: "Frantic movement",
-          onScreenText: "What went wrong?",
-          subtitleStyle: "Bold red",
-          motionGraphics: "Glitch effect",
-          zoomSuggestions: "Snap zoom",
-          transitionNotes: "Glitch transition",
-          editingNotes: "Fast paced cuts",
-          soundEffects: "Glitch sounds, heart beat",
-          musicNotes: "Fast tempo electronic",
-          aiPrompt: "Close up of a cluttered desk with scattered papers, harsh directional lighting, desaturated colors, tense atmosphere, highly detailed, 8k --ar 16:9",
-          negativePrompt: "clean, organized, calm, low quality",
-          thumbnailConsistency: "Keep glitch motif"
-        }
-      ]
-    }, { status: 200 });
+    return NextResponse.json({ 
+      error: "AI generation failed.",
+      details: errorMsg,
+      code: statusCode
+    }, { status: statusCode });
   }
 }

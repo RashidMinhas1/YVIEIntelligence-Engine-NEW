@@ -7,9 +7,10 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { useJob } from "@/hooks/use-job";
+import { useAIJobManager } from "@/lib/intelligence/job-manager-context";
 import { JobProgress } from "@/components/ui/job-progress";
-import { Download, Save, RefreshCw, Sparkles, CheckCircle2, XCircle, FileText, FileJson, FileIcon } from "lucide-react";
+import { Loader2 } from "lucide-react";
+import { Download, Save, RefreshCw, Sparkles, CheckCircle2, XCircle, FileText, FileJson, FileIcon, Target, Brain } from "lucide-react";
 
 interface ProductionPanelProps {
   project: StudioProject;
@@ -17,7 +18,7 @@ interface ProductionPanelProps {
 }
 
 export function ProductionPanel({ project, setProject }: ProductionPanelProps) {
-  const [activeTab, setActiveTab] = useState<"dashboard" | "titles" | "description" | "tags" | "chapters" | "checklist">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "titles" | "description" | "tags" | "chapters" | "checklist" | "thumbnails">("dashboard");
 
   const updateProduction = (newData: Partial<ProductionData>) => {
     setProject(p => ({
@@ -31,46 +32,74 @@ export function ProductionPanel({ project, setProject }: ProductionPanelProps) {
 
 
 
-  const { job, isPolling, startPolling, cancelJob, reset } = useJob(null, {
-    onComplete: (result) => {
-      // The result contains the specific generated asset based on action
-      if (result.thumbnails) updateProduction({ thumbnails: result.thumbnails });
-      if (result.thumbnail) {
-        const updatedThumbnails = (project.production?.thumbnails || []).map(t => 
-          t.id === result.thumbnail.id ? result.thumbnail : t
-        );
-        updateProduction({ thumbnails: updatedThumbnails });
-      }
-      if (result.titles) updateProduction({ titles: result.titles });
-      if (result.description) updateProduction({ description: result.description });
-      if (result.tags) updateProduction({ tags: result.tags });
-      if (result.chapters) updateProduction({ chapters: result.chapters });
-      if (result.editingChecklist) updateProduction({ editingChecklist: result.editingChecklist });
-      if (result.readinessScore) updateProduction({ readinessScore: result.readinessScore });
-      toast.success("Generation complete.");
-    },
-    onError: (err) => {
-      toast.error(err || "Generation failed.");
-    }
-  });
+  const jobManager = useAIJobManager();
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generatingAction, setGeneratingAction] = useState("");
 
   const triggerAction = async (actionPath: string, payload: any = {}) => {
-    if (isPolling) return;
-    reset();
+    if (isGenerating) { toast.error("Already generating. Please wait."); return; }
+    setIsGenerating(true);
+    setGeneratingAction(actionPath.replace(/_/g, " "));
     try {
-      const res = await fetch(`/api/studio/production`, {
+      const res = await fetch("/api/studio/production", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: actionPath, projectId: project.id, sections: project.sections, ...payload })
+        body: JSON.stringify({
+          action: actionPath,
+          projectId: project.id,
+          sections: project.sections,
+          rawScript: project.rawScript,
+          theme: project.globalVisualStyle,
+          ...payload
+        })
       });
       const data = await res.json();
-      if (data.jobId) startPolling(data.jobId);
-    } catch (err) {
-      toast.error("Action failed.");
+      if (!res.ok) throw new Error(data.error);
+
+      // Merge result into project.production
+      setProject(p => ({
+        ...p,
+        production: {
+          ...(p.production || {}),
+          // Omit any non-field keys (e.g., success)
+          ...(Object.fromEntries(Object.entries(data).filter(([k]) => k !== "success")))
+        } as any
+      }));
+      toast.success("Done!");
+    } catch (err: any) {
+      toast.error(err.message || "Action failed.");
+    } finally {
+      setIsGenerating(false);
+      setGeneratingAction("");
     }
   };
 
   const production = project.production || { thumbnails: [], titles: [], chapters: [], editingChecklist: [] };
+
+  const handleSaveProduction = () => {
+    const dataToSave = {
+      titles: project.production?.titles || [],
+      description: project.production?.description || null,
+      tags: project.production?.tags || null,
+      chapters: project.production?.chapters || [],
+      checklist: project.production?.editingChecklist || [],
+      readinessScore: project.production?.readinessScore || null
+    };
+    
+    // Save to local storage explicitly
+    localStorage.setItem(`studio_production_${project.id}`, JSON.stringify(dataToSave));
+    
+    // Also trigger download for user
+    const blob = new Blob([JSON.stringify(dataToSave, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `production_data_${project.id}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    
+    toast.success("Production data saved independently!");
+  };
 
   return (
     <div className="flex flex-col h-full bg-background border-r">
@@ -82,18 +111,23 @@ export function ProductionPanel({ project, setProject }: ProductionPanelProps) {
           <Button variant={activeTab === "tags" ? "secondary" : "ghost"} size="sm" onClick={() => setActiveTab("tags")} className={`rounded-lg ${activeTab === "tags" ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}>Tags</Button>
           <Button variant={activeTab === "chapters" ? "secondary" : "ghost"} size="sm" onClick={() => setActiveTab("chapters")} className={`rounded-lg ${activeTab === "chapters" ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}>Chapters</Button>
           <Button variant={activeTab === "checklist" ? "secondary" : "ghost"} size="sm" onClick={() => setActiveTab("checklist")} className={`rounded-lg ${activeTab === "checklist" ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}>Checklist</Button>
+          <Button variant={activeTab === "thumbnails" ? "secondary" : "ghost"} size="sm" onClick={() => setActiveTab("thumbnails")} className={`rounded-lg ${activeTab === "thumbnails" ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}>Thumbnails</Button>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => toast.success("Preset saved to Library!")} className="rounded-lg h-9 border-border/60">
-            <Save className="w-4 h-4 mr-2 text-muted-foreground" /> Save Preset
+          <Button variant="outline" size="sm" onClick={handleSaveProduction} className="rounded-lg h-9 border-border/60">
+              <Download className="w-4 h-4 mr-2 text-muted-foreground" /> Export
+            </Button>
+          <Button variant="outline" size="sm" onClick={handleSaveProduction} className="rounded-lg h-9 border-border/60">
+            <Save className="w-4 h-4 mr-2 text-muted-foreground" /> Save Production
           </Button>
         </div>
       </div>
 
       <ScrollArea className="flex-1 p-6 md:p-8 bg-muted/10">
-        {isPolling && job && (
-          <div className="mb-8">
-            <JobProgress job={job} onCancel={cancelJob} />
+        {isGenerating && (
+          <div className="mb-8 p-4 bg-primary/10 border border-primary/20 rounded-xl flex items-center gap-3">
+             <Loader2 className="w-5 h-5 text-primary animate-spin" />
+             <div className="font-semibold text-primary">AI is generating: {generatingAction}...</div>
           </div>
         )}
 
@@ -101,6 +135,34 @@ export function ProductionPanel({ project, setProject }: ProductionPanelProps) {
           {/* Dashboard Tab */}
           {activeTab === "dashboard" && (
             <div className="space-y-8">
+              <div className="bg-card border border-border/60 rounded-2xl p-6 shadow-sm mb-6">
+                <div className="flex justify-between items-center mb-4">
+                  <div>
+                    <h3 className="text-xl font-bold flex items-center gap-2"><FileText className="w-5 h-5 text-primary"/> Source Script Content</h3>
+                    <p className="text-sm text-muted-foreground mt-1">This script will be used to generate titles, descriptions, and thumbnails step-by-step.</p>
+                  </div>
+                  <Button size="sm" onClick={() => triggerAction("analyze_production", { production })} disabled={isGenerating} className="rounded-lg h-10 px-4">
+                    {isGenerating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />} Analyze Script
+                  </Button>
+                </div>
+                <div className="bg-muted/30 p-4 rounded-xl border border-border/40 text-sm max-h-60 overflow-y-auto custom-scrollbar">
+                  {project.rawScript ? (
+                    <div className="whitespace-pre-wrap">{project.rawScript}</div>
+                  ) : project.sections && project.sections.length > 0 ? (
+                    <div className="space-y-4">
+                      {project.sections.map((s, i) => (
+                        <div key={s.id || i}>
+                          <span className="font-bold text-muted-foreground text-xs uppercase mr-2 bg-muted px-2 py-0.5 rounded">{s.type || `Scene ${i+1}`}</span>
+                          <span className="text-foreground leading-relaxed">{s.content}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-muted-foreground italic text-center py-6">No script content found. Add content in the Storyboard or Script tab first.</div>
+                  )}
+                </div>
+              </div>
+
               <div className="flex justify-between items-center">
                 <div>
                   <h3 className="text-xl font-bold">Production Quality Score</h3>
@@ -163,8 +225,8 @@ export function ProductionPanel({ project, setProject }: ProductionPanelProps) {
           <div className="space-y-6">
             <div className="flex justify-between items-center">
               <h3 className="text-xl font-bold">Optimized Titles</h3>
-              <Button size="sm" onClick={() => triggerAction("generate_titles")} className="rounded-lg h-10 px-4">
-                <Sparkles className="w-4 h-4 mr-2 text-primary-foreground" /> Generate Titles
+              <Button size="sm" onClick={() => triggerAction("generate_titles")} disabled={isGenerating} className="rounded-lg h-10 px-4">
+                {isGenerating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2 text-primary-foreground" />} Generate Titles
               </Button>
             </div>
             <div className="space-y-4">
@@ -195,8 +257,8 @@ export function ProductionPanel({ project, setProject }: ProductionPanelProps) {
           <div className="space-y-6">
             <div className="flex justify-between items-center">
               <h3 className="text-xl font-bold">Smart Description</h3>
-              <Button size="sm" onClick={() => triggerAction("generate_description")} className="rounded-lg h-10 px-4">
-                <Sparkles className="w-4 h-4 mr-2" /> Generate Description
+              <Button size="sm" onClick={() => triggerAction("generate_description")} disabled={isGenerating} className="rounded-lg h-10 px-4">
+                {isGenerating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />} Generate Description
               </Button>
             </div>
             {production.description ? (
@@ -227,8 +289,8 @@ export function ProductionPanel({ project, setProject }: ProductionPanelProps) {
           <div className="space-y-6">
             <div className="flex justify-between items-center">
               <h3 className="text-xl font-bold">SEO Tags & Keywords</h3>
-              <Button size="sm" onClick={() => triggerAction("generate_tags")} className="rounded-lg h-10 px-4">
-                <Sparkles className="w-4 h-4 mr-2" /> Generate Tags
+              <Button size="sm" onClick={() => triggerAction("generate_tags")} disabled={isGenerating} className="rounded-lg h-10 px-4">
+                {isGenerating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />} Generate Tags
               </Button>
             </div>
             {production.tags ? (
@@ -259,8 +321,8 @@ export function ProductionPanel({ project, setProject }: ProductionPanelProps) {
           <div className="space-y-6">
             <div className="flex justify-between items-center">
               <h3 className="text-xl font-bold">Timestamp Chapters</h3>
-              <Button size="sm" onClick={() => triggerAction("generate_chapters")} className="rounded-lg h-10 px-4">
-                <Sparkles className="w-4 h-4 mr-2" /> Generate Chapters
+              <Button size="sm" onClick={() => triggerAction("generate_chapters")} disabled={isGenerating} className="rounded-lg h-10 px-4">
+                {isGenerating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />} Generate Chapters
               </Button>
             </div>
             {production.chapters.length > 0 ? (
@@ -318,6 +380,61 @@ export function ProductionPanel({ project, setProject }: ProductionPanelProps) {
             ) : (
               <div className="text-sm font-medium text-muted-foreground border-dashed border-2 border-border/60 p-12 rounded-2xl text-center bg-card">
                   No editing checklist generated yet.
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Thumbnails Tab */}
+        {activeTab === "thumbnails" && (
+          <div className="space-y-6">
+            <div className="flex justify-between items-center">
+              <h3 className="text-xl font-bold">Thumbnail Concepts</h3>
+              <Button size="sm" onClick={() => triggerAction("generate_thumbnail")} disabled={isGenerating} className="rounded-lg h-10 px-4">
+                {isGenerating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />} Generate Concepts
+              </Button>
+            </div>
+            {production.thumbnails && production.thumbnails.length > 0 ? (
+              <div className="space-y-6">
+                {production.thumbnails.map((thumb, idx) => (
+                  <div key={thumb.id} className="border border-border/60 rounded-2xl bg-card shadow-sm overflow-hidden">
+                    <div className="bg-muted p-4 border-b border-border/60 flex justify-between items-center">
+                      <h4 className="font-bold text-lg text-foreground flex items-center gap-2">
+                        <span className="bg-primary/20 text-primary px-2.5 py-0.5 rounded-lg text-sm">Concept {idx + 1}</span>
+                        {thumb.title}
+                      </h4>
+                      <div className="flex gap-4 text-xs font-semibold text-muted-foreground">
+                        <span className="flex items-center gap-1"><Target className="w-3.5 h-3.5"/> CTR: {thumb.ctrScore}</span>
+                        <span className="flex items-center gap-1"><Brain className="w-3.5 h-3.5"/> Emotion: {thumb.emotionScore}</span>
+                      </div>
+                    </div>
+                    <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
+                      <div className="space-y-4">
+                        <div>
+                          <strong className="block text-muted-foreground uppercase tracking-wider text-xs mb-1">Visual Hook</strong>
+                          <p className="font-medium">{thumb.visualHook}</p>
+                        </div>
+                        <div>
+                          <strong className="block text-muted-foreground uppercase tracking-wider text-xs mb-1">AI Image Prompt</strong>
+                          <div className="bg-muted p-3 rounded-lg border border-border/50 font-mono text-xs text-muted-foreground break-words">
+                            {thumb.imagePrompt}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="space-y-3 bg-background border border-border/40 p-4 rounded-xl">
+                        <div className="flex justify-between border-b pb-1.5"><span className="text-muted-foreground">Main Subject</span> <span className="font-medium text-right max-w-[60%]">{thumb.mainSubject}</span></div>
+                        <div className="flex justify-between border-b pb-1.5"><span className="text-muted-foreground">Background</span> <span className="font-medium text-right max-w-[60%]">{thumb.background}</span></div>
+                        <div className="flex justify-between border-b pb-1.5"><span className="text-muted-foreground">Color Palette</span> <span className="font-medium text-right max-w-[60%]">{thumb.colorPalette}</span></div>
+                        <div className="flex justify-between border-b pb-1.5"><span className="text-muted-foreground">Text Placement</span> <span className="font-medium text-right max-w-[60%]">{thumb.textPlacement}</span></div>
+                        <div className="flex justify-between"><span className="text-muted-foreground">Camera Angle</span> <span className="font-medium text-right max-w-[60%]">{thumb.cameraAngle}</span></div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-sm font-medium text-muted-foreground border-dashed border-2 border-border/60 p-12 rounded-2xl text-center bg-card">
+                  No thumbnail concepts generated yet. Click "Generate Concepts" to create 5 unique ideas.
               </div>
             )}
           </div>

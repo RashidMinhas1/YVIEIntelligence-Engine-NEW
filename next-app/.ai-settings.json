@@ -6,24 +6,37 @@
       "baseUrl": "",
       "model": "",
       "isEnabled": false,
-      "apiKeys": []
+      "apiKeys": [],
+      "providerType": "openai",
+      "displayName": "OPENAI"
     },
     "gemini": {
-      "apiKey": "v1:Lc1A65FQgAQO+t/cZwsCCD3s/Ws6meThIbD+cU4Qy/oudvBIbkD5mVeUA4582RJqYwjsT48RGKpWJixS8+cnIQ==:pNxLHStVyz99OPd8B/9M2w==:QU9pcZ10KNxWFud+xMpp+A==:r1Tr7mnrsn3178VF53qM01xjI9JXOiQEffsy0DrWIGgQ6+EgSJey",
+      "apiKey": "v1:0Dq8b2RyH0bgIXrp5IqgNXI26seAVJaSq2yZzete2OV3VykqDTsdW3MB92ZjyF+wMS/Cj9wqFBvn+hyXkYaGEg==:w2HsS7onqzY0H6lIyw0irA==:/MRbBZr2EgiM3QLfRlDQnQ==:10HhkiPFWz0kxQnmszY2iLSr+Fm7FypIccA3E6YlbnJakWZugqWK",
       "baseUrl": "",
-      "model": "gemini-2.5-pro",
+      "model": "",
       "apiKeys": [
-        "v1:Lc1A65FQgAQO+t/cZwsCCD3s/Ws6meThIbD+cU4Qy/oudvBIbkD5mVeUA4582RJqYwjsT48RGKpWJixS8+cnIQ==:pNxLHStVyz99OPd8B/9M2w==:QU9pcZ10KNxWFud+xMpp+A==:r1Tr7mnrsn3178VF53qM01xjI9JXOiQEffsy0DrWIGgQ6+EgSJey"
+        "v1:0Dq8b2RyH0bgIXrp5IqgNXI26seAVJaSq2yZzete2OV3VykqDTsdW3MB92ZjyF+wMS/Cj9wqFBvn+hyXkYaGEg==:w2HsS7onqzY0H6lIyw0irA==:/MRbBZr2EgiM3QLfRlDQnQ==:10HhkiPFWz0kxQnmszY2iLSr+Fm7FypIccA3E6YlbnJakWZugqWK"
       ],
-      "isEnabled": false
+      "isEnabled": false,
+      "providerType": "gemini",
+      "displayName": "GEMINI"
     },
     "openrouter": {
-      "apiKey": "v1:rR46fNUc66Wi5C7Mupb+pmHaGGduaZGrqPt/VmvBaxGLc/QlDWkNNtyATLYwqoSIjy10gABrPClfRHPeIVdorw==:yjJ/ADC9l48m5vOj5Rzzfg==:Q/gluOwvK0lIBQve2fKCUg==:+74Voya+uz4GxIG+AYdh7bdtyh35N0Hu/c5T6rMC41G0ntNGSk0o64GtTuMH9AWdGBOvBwRYiVuFjtyGSMNRiEpmJXm/WHuLug==",
-      "baseUrl": "",
-      "model": "nvidia/nemotron-nano-12b-v2-vl:free",
+      "apiKey": "v1:dS8gqhtbUfNeJUKFfwoJYNzpLb8ql8jOK6/aRjhTUjXcavfUAp9tsrF/MFCh44pUsKXREpEKRaKyzEnEz7JK4g==:Dtm3535gAbEAKeJFrUj+2g==:sEZZeTyOjMMw7IlVoB8dzA==:B+sj9/r23pekIRoz6MzzEj/TA93LuQTz/CoVUWTHibl5bTIvv7EjU43caZby7BEtuxFRcwJSPpk0Wm1yeEwH66yzOSirTMv6Og==",
+      "baseUrl": "https://openrouter.ai/api/v1",
+      "model": "",
       "apiKeys": [
-        "v1:rR46fNUc66Wi5C7Mupb+pmHaGGduaZGrqPt/VmvBaxGLc/QlDWkNNtyATLYwqoSIjy10gABrPClfRHPeIVdorw==:yjJ/ADC9l48m5vOj5Rzzfg==:Q/gluOwvK0lIBQve2fKCUg==:+74Voya+uz4GxIG+AYdh7bdtyh35N0Hu/c5T6rMC41G0ntNGSk0o64GtTuMH9AWdGBOvBwRYiVuFjtyGSMNRiEpmJXm/WHuLug=="
-      ]
+        "v1:dS8gqhtbUfNeJUKFfwoJYNzpLb8ql8jOK6/aRjhTUjXcavfUAp9tsrF/MFCh44pUsKXREpEKRaKyzEnEz7JK4g==:Dtm3535gAbEAKeJFrUj+2g==:sEZZeTyOjMMw7IlVoB8dzA==:B+sj9/r23pekIRoz6MzzEj/TA93LuQTz/CoVUWTHibl5bTIvv7EjU43caZby7BEtuxFRcwJSPpk0Wm1yeEwH66yzOSirTMv6Og=="
+      ],
+      "providerType": "openrouter",
+      "authMethod": "bearer",
+      "headers": {
+        "HTTP-Referer": "http://localhost:3000",
+        "X-Title": "YouTube Viral Intelligence Engine"
+      },
+      "isEnabled": true,
+      "displayName": "OPENROUTER",
+      "defaultModel": "google/gemini-2.5-flash"
     }
   },
   "features": {
@@ -31,9 +44,54 @@
       "provider": "openrouter",
       "model": "meta-llama/llama-3.1-405b-instruct",
       "apiKeys": [
-        "v1:TPjhyrAjM0sQ37PT0ydmxVskdr6hXA6fH2VW9TVAky4yGIde4bqDpQmMbnXS5dr+F4LoRVdlj9pOxbCoNCuAQQ==:EMdUT++kyqEQB7Rb5x6ChA==:e4I/BWOxOu3ZGM8QldXUlw==:u6FWUau5G0M7Xq9xVF/sPWtUKcZZddpPCTld3SZLBf3vrMbo2ac9GICgMEImum1pgKhQWfTKqyaaCrr3mFSo5su7opNnqZZyPg=="
+        ""
       ],
       "isLocalOverrideEnabled": true
+    },
+    "dashboard-translation": {
+      "provider": "gemini",
+      "model": ""
+    },
+    "global": {
+      "provider": "openrouter",
+      "model": "auto",
+      "apiKeys": [
+        ""
+      ],
+      "isLocalOverrideEnabled": true
+    }
+  },
+  "models": {
+    "openrouter/free": {
+      "provider": "openrouter",
+      "name": "Free Models Router",
+      "contextWindow": 200000,
+      "isFree": true,
+      "reasoning": false,
+      "vision": false
+    },
+    "poolside/laguna-s-2.1:free": {
+      "provider": "openrouter",
+      "name": "Poolside: Laguna S 2.1 (free)",
+      "contextWindow": 262144,
+      "isFree": true,
+      "reasoning": false,
+      "vision": false
+    },
+    "cohere/north-mini-code:free": {
+      "provider": "openrouter",
+      "name": "Cohere: North Mini Code (free)",
+      "contextWindow": 256000,
+      "isFree": true,
+      "reasoning": false,
+      "vision": false
+    }
+  },
+  "profiles": {
+    "profile-1785660787399": {
+      "name": "TESTING",
+      "defaultProvider": "openrouter",
+      "budget": 0
     }
   }
 }

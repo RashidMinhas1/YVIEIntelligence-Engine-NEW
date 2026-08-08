@@ -12,7 +12,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Save, Play, Settings, AlertTriangle, FileText, ChevronDown, ChevronRight, X } from "lucide-react";
+import { Loader2, Plus, Sparkles, Wand2, History, Bot, BookOpen, Layers, CheckCircle2, ChevronDown, Download, Eye, Link as LinkIcon, Settings, AlertTriangle, FileText, ChevronRight, X, Save, Play } from "lucide-react";
+import { ActiveProviderBadge } from "../ActiveProviderBadge";
 import { toast } from "sonner";
 import { KNOWLEDGE_CATEGORIES } from "@/lib/config/knowledge-categories";
 import { KnowledgePicker } from "./knowledge-picker";
@@ -158,10 +159,21 @@ export function AssemblyWorkspace({
       {/* Left Column: Categories and Selections */}
       <div className="w-1/2 flex flex-col border-r border-border overflow-y-auto bg-muted/10 p-4 space-y-6 custom-scrollbar">
         <div className="space-y-1">
-          <h1 className="text-2xl font-bold font-mono tracking-tight flex items-center gap-2">
-            <Settings className="w-5 h-5 text-primary" />
-            Knowledge Assembly Engine
-          </h1>
+          <div className="flex items-center justify-between">
+            <h1 className="text-2xl font-bold font-mono tracking-tight flex items-center gap-2">
+              <Settings className="w-5 h-5 text-primary" />
+              Knowledge Assembly Engine
+            </h1>
+            <div className="pt-1">
+              <ActiveProviderBadge 
+                featureKey="builder" 
+                moduleName="Builder" 
+                subFeatures={[
+                  { key: 'builder.knowledge_assembler', label: 'Knowledge Assembler' }
+                ]}
+              />
+            </div>
+          </div>
           <p className="text-xs text-muted-foreground">Construct a master script by blending atomic knowledge objects.</p>
         </div>
 

@@ -11,6 +11,8 @@ import { VISUAL_STYLES, CATEGORIES } from "@/lib/constants/visual-styles";
 import { toast } from "sonner";
 import JSZip from "jszip";
 import { saveAs } from "file-saver";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { ActiveProviderBadge } from "../ActiveProviderBadge";
 
 const NAV_ITEMS: { id: GeneratorTab; label: string; icon: any }[] = [
   { id: "import", label: "Script Import", icon: FileText },
@@ -45,7 +47,7 @@ const MOCK_JSON_RESULT = `{
 }`;
 
 function LayoutContent() {
-  const { activeTab, setActiveTab, isSaving, project, setProject } = useGenerator();
+  const { activeTab, setActiveTab, isSaving, project, setProject, history, loadProject, deleteProject } = useGenerator();
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -249,98 +251,350 @@ function LayoutContent() {
       const newScenes: any[] = [];
       const newPrompts: Record<string, any> = {};
 
-      const globalMood = project.settings?.mood || "Serious";
+      // ── Derive visual style from user selection ────────────────────────────
+      const selectedStyle = (project.settings?.visualStyle || "Documentary").toLowerCase();
 
-      // ── Beat title bank (cycles if script has more beats) ──────────────────
-      const beatTitles = [
-        "The Spark",        "Cities in Ruin",   "The Human Cost",
-        "The Eastern Front","Global Mobilization","Resistance in Shadows",
-        "Immense Sacrifice","Silence and Memory","Turning the Tide",
-        "The Home Front",   "Into the Unknown",  "Final Stand",
-        "Liberation",       "The Price of War",  "Aftermath",
-      ];
+      // ── Style DNA: each style provides its own semantically correct defaults ─
+      type StyleDefaults = {
+        cameraMotions: string[];
+        lightingMoods: { primary: string; secondary: string; accents: string }[];
+        sfxSets: string[][];
+        ambients: string[];
+        musicBank: { track: string; description: string; tempo: string; key: string; curve: string }[];
+        bgPalettes: string[];
+        transitionBank: { between: string; impact: string }[];
+        look: string;
+        lens: string;
+        colorGrade: string;
+        overlayStyle: string;
+        fontEnter: string;
+        fontExit: string;
+        vfxGrain: string;
+        vfxParticles: string;
+        forbiddenElements: string[];
+      };
 
-      // ── Camera motion bank ─────────────────────────────────────────────────
-      const cameraMotions = [
-        "Slow pan across the parchment map with ink spreading",
-        "Slow push-in on ink illustration of the scene",
-        "Dolly forward across hand-drawn landscape",
-        "Crane shot descending from above into the scene",
-        "Wide establishing pan revealing the full environment",
-        "Orbit shot slowly circling ink-drawn figures",
-        "Slow pan left to right across illustrated environment",
-        "Tilt up from ground level — revealing scale in ink",
-        "Tracking shot following ink-drawn subject movement",
-        "Cinematic reveal — ink bleeds back to expose full scene"
-      ];
+      const getStyleDefaults = (style: string): StyleDefaults => {
+        // ── True Crime Dark ─────────────────────────────────────────────────
+        if (style.includes("true crime") || style.includes("crime") || style.includes("detective") || style.includes("noir")) {
+          return {
+            cameraMotions: [
+              "Slow push-in on evidence — building dread",
+              "Static locked frame — interrogation room tension",
+              "Handheld close-up — documentary intimacy on witness",
+              "Slow rack focus — shifting from suspect to evidence",
+              "Long lens compression — surveillance aesthetic",
+              "Tracking shot following investigator through scene",
+              "Low angle — conveying power imbalance",
+              "Extreme close-up on document or clue",
+            ],
+            lightingMoods: [
+              { primary: "Single hard practical lamp — cold white", secondary: "Deep shadow filling 60% of frame", accents: "Warm amber rim on subject edge" },
+              { primary: "Venetian blind light stripes across suspect", secondary: "Near-black background", accents: "Cold blue reflected on glass surface" },
+              { primary: "Desk lamp pool — harsh downward key", secondary: "Ink-black surrounding shadow", accents: "Red reflection off case file folder" },
+              { primary: "Fluorescent flicker in evidence room", secondary: "Green-tinted shadow fill", accents: "Warm practical from hallway" },
+              { primary: "Candlelight amber on aged document", secondary: "Deep cool shadow outside lamp radius", accents: "Subtle warm rim on subject" },
+            ],
+            sfxSets: [
+              ["Typewriter keys striking paper", "File cabinet drawer closing", "Rain against glass"],
+              ["Clock ticking — slow, measured", "Papers shuffling", "Distant city traffic muffled"],
+              ["Single phone ringing unanswered", "Fluorescent light hum", "Footsteps on tile floor"],
+              ["Pen scratching on notepad", "Recording tape rewinding", "Door buzzer"],
+              ["Newspaper printing press", "Coffee cup placed on desk", "Low building hum"],
+            ],
+            ambients: [
+              "Quiet interview room — low ventilation hum",
+              "Late-night detective office — city murmur through glass",
+              "Rain against window — isolation and reflection",
+              "Empty courthouse corridor — reverberant silence",
+              "Evidence room — fluorescent hum, paper sounds",
+            ],
+            musicBank: [
+              { track: "Sparse piano — investigative", description: "Single piano line, minor key, deliberate pacing", tempo: "54 BPM", key: "D minor", curve: "steady, contemplative" },
+              { track: "Low cello tension", description: "Solo cello sustain building unease", tempo: "48 BPM", key: "B minor", curve: "slow build, peaks at reveal" },
+              { track: "Staccato string pulses", description: "Short string bursts on beats, tension rhythm", tempo: "70 BPM", key: "E minor", curve: "urgent escalation" },
+              { track: "Muted trumpet — noir", description: "Lonely trumpet melody over bass drone", tempo: "52 BPM", key: "A minor", curve: "melancholic, flat arc" },
+              { track: "Electronic ambient tension", description: "Low synth pad with subtle pulse", tempo: "60 BPM", key: "F minor", curve: "sustained throughout" },
+            ],
+            bgPalettes: ["near-black with cold shadow", "deep charcoal grey", "dark slate with amber accent", "muted ink-grey", "midnight blue-grey"],
+            transitionBank: [
+              { between: "hard cut on revelation moment", impact: "single frame black flash on key word" },
+              { between: "slow cross-dissolve through black", impact: "desaturate to grey on emotional peaks" },
+              { between: "J-cut — audio leads into next scene", impact: "subtle vignette crush on cut" },
+              { between: "match cut on similar object shapes", impact: "momentary freeze frame on evidence reveal" },
+              { between: "fade through black — time passage", impact: "typewriter click on new caption appear" },
+            ],
+            look: "Desaturated film noir aesthetic — heavy vignette, grain texture, high contrast chiaroscuro rendering",
+            lens: "85mm portrait compression — intimate, slightly shallow depth of field, subject isolation",
+            colorGrade: "Cold blue shadows, warm amber mid-tones on subjects, deep crushed blacks",
+            overlayStyle: "Typewriter-style case fact overlay — lower third only, white on black, no decorative borders",
+            fontEnter: "typewriter character-by-character",
+            fontExit: "typewriter delete wipe",
+            vfxGrain: "heavy 35mm film grain — authentic investigative documentary texture",
+            vfxParticles: "dust motes in lamp beam — slow drift",
+            forbiddenElements: ["war sounds", "military imagery", "explosions", "battlefield", "cartoon elements", "anime effects", "3D CGI", "bright saturated colours"],
+          };
+        }
 
-      // ── Lighting bank (ink/parchment style) ───────────────────────────────
-      const lightingMoods = [
-        { primary: "Sepia parchment tone", secondary: "Dark ink shadows", accents: "Red ink stains for conflict zones" },
-        { primary: "Warm candlelight amber over parchment", secondary: "Deep sepia shadow zones", accents: "Pale highlight on focal figures" },
-        { primary: "Cold ash-grey wash across the scene", secondary: "Muted blue-grey ink fill", accents: "White ink highlight on horizon" },
-        { primary: "Dramatic ink contrast — near black background", secondary: "Faded parchment mid-tones", accents: "Burnt sienna ink accents on key elements" },
-        { primary: "Golden hour sepia wash", secondary: "Long dark shadows in ink", accents: "Faint white rim on silhouetted figures" },
-      ];
+        // ── Pixar / Animation ───────────────────────────────────────────────
+        if (style.includes("pixar") || style.includes("animation") || style.includes("animated") || style.includes("cartoon")) {
+          return {
+            cameraMotions: [
+              "Dynamic arc shot — character energy and joy",
+              "Low angle wide — making environment feel grand",
+              "Expressive rack focus — character emotion emphasis",
+              "Tracking alongside character in motion",
+              "High angle — vulnerability or charm",
+              "Slow push-in — emotional character moment",
+              "Whip pan — comic surprise transition",
+              "Close-up on expressive character face",
+            ],
+            lightingMoods: [
+              { primary: "Warm golden key light — optimism", secondary: "Soft fill — no harsh shadows", accents: "Bright eye-light on character" },
+              { primary: "Cool adventure blue — exploration", secondary: "Warm environment bounce", accents: "Sparkle on magical elements" },
+              { primary: "Dramatic orange sunset — emotional climax", secondary: "Warm shadow gradient", accents: "Rim light on hero silhouette" },
+              { primary: "Soft indoor warmth — safety and home", secondary: "Slightly cooler background", accents: "Warm glow from practical source" },
+              { primary: "Colourful environment bounce — wonder", secondary: "Soft ambient fill", accents: "Character highlight from above" },
+            ],
+            sfxSets: [
+              ["Cartoon footstep rhythm", "Gentle string pluck on discovery", "Cheerful bell accent"],
+              ["Bounce sound on character action", "Whimsical pop on surprise", "Gentle wind chime"],
+              ["Paper shuffle — playful texture", "Soft musical hit on reveal", "Happy crowd murmur"],
+              ["Adventure fanfare snippet", "Door creak — comic timing", "Coin clink on success"],
+              ["Playful percussion accent", "Animal reaction sound", "Magical shimmer on effect"],
+            ],
+            ambients: [
+              "Gentle outdoor nature — birds, light breeze",
+              "Warm indoor home atmosphere — quiet and safe",
+              "Adventure exterior — wind and distant nature",
+              "Magical environment — subtle ethereal hum",
+              "Town square — gentle crowd and ambient music",
+            ],
+            musicBank: [
+              { track: "Warm orchestral adventure", description: "Strings and woodwind melody — optimistic", tempo: "92 BPM", key: "G major", curve: "energetic opening, warm resolution" },
+              { track: "Tender piano — emotional moment", description: "Solo piano with light strings", tempo: "56 BPM", key: "C major", curve: "gentle throughout, single swell" },
+              { track: "Adventure brass and strings", description: "Full orchestral heroic theme", tempo: "108 BPM", key: "D major", curve: "builds to triumphant peak" },
+              { track: "Whimsical woodwind theme", description: "Flute and clarinet playful motif", tempo: "84 BPM", key: "F major", curve: "light and bouncing" },
+              { track: "Emotional string swell", description: "Lush string melody — nostalgia and heart", tempo: "66 BPM", key: "A major", curve: "slow crescendo to emotional peak" },
+            ],
+            bgPalettes: ["warm golden amber", "soft sky blue", "vibrant green meadow", "warm interior cream", "adventure sunset orange"],
+            transitionBank: [
+              { between: "iris wipe — classic animation style", impact: "sparkle burst on character action" },
+              { between: "star wipe on magical moment", impact: "colour flash on surprise" },
+              { between: "shape morph cut", impact: "sound accent on transition" },
+              { between: "smash cut — comic timing", impact: "visual pop on impact" },
+              { between: "cross-dissolve — emotional beat", impact: "soft glow on dissolve" },
+            ],
+            look: "Stylised 3D animation with subsurface scattering, expressive character rendering, clean vibrant materials",
+            lens: "Wide 24mm with slight barrel distortion — dynamic and expressive character perspective",
+            colorGrade: "Saturated vibrant palette, warm hero tones, cool contrast backgrounds",
+            overlayStyle: "Friendly rounded sans-serif name cards — character-specific colour, clean and readable",
+            fontEnter: "bounce in from below",
+            fontExit: "pop out scale",
+            vfxGrain: "none — clean digital animation surface",
+            vfxParticles: "magical sparkle particles and environment dust motes",
+            forbiddenElements: ["dark themes", "violence", "war imagery", "film grain", "desaturated grades", "typewriter fonts", "noir lighting"],
+          };
+        }
 
-      // ── SFX bank ──────────────────────────────────────────────────────────
-      const sfxSets = [
-        ["Air raid siren faint in background", "Tank treads rumbling", "Ink splatter sound accent"],
-        ["Distant cannon fire rumble", "Marching boots on cobblestone", "Radio static burst"],
-        ["Wind howling across open field", "Paper map rustling", "Clock ticking under tension"],
-        ["Crowd murmur of soldiers", "Metal equipment clinking", "Muffled distant explosion"],
-        ["Siren wail fading in distance", "Aircraft engine drone overhead", "Broken glass accent"],
-        ["Soft crying in background", "Footsteps on rubble", "Low church bell tolling"],
-        ["Factory machinery hum", "Morse code signal tapping", "Steel door closing"],
-        ["Silence broken by single gunshot", "Echo in empty street", "Wind through ruins"],
-      ];
+        // ── Cinematic 3D Render ─────────────────────────────────────────────
+        if (style.includes("cinematic 3d") || style.includes("3d render") || style.includes("cgi") || style.includes("3d")) {
+          return {
+            cameraMotions: [
+              "Precise cinematic dolly reveal — controlled, premium",
+              "Slow crane rise — scale and context establishment",
+              "Orbital arc — subject prestige and isolation",
+              "Anamorphic long lens push — emotional compression",
+              "Low-angle dramatic reveal — power and authority",
+              "Gimbal smooth tracking — premium production feel",
+              "Locked tripod — gravity and weight",
+              "Focus pull from environment to subject",
+            ],
+            lightingMoods: [
+              { primary: "Key light — large area soft box equivalent", secondary: "Bounce fill — neutral", accents: "Rim light separating subject from background" },
+              { primary: "Dramatic directional sun — golden hour", secondary: "Atmospheric scatter fill", accents: "Practical light motivating secondary source" },
+              { primary: "Cool overcast — contemplative", secondary: "Soft neutral fill", accents: "Subtle warm practical accent" },
+              { primary: "Volumetric god rays — cinematic atmosphere", secondary: "Deep shadow fill", accents: "Specular highlight on key surfaces" },
+              { primary: "Night exterior — cool blue ambient", secondary: "Warm interior practical leak", accents: "Rim light from background source" },
+            ],
+            sfxSets: [
+              ["Premium foley — leather, fabric, material sounds", "Subtle architectural ambience", "Precise mechanical sound design"],
+              ["Environment-specific ambient detail", "Subtle wind movement", "Distant contextual sound"],
+              ["Human movement foley — footsteps, breathing", "Material interaction sounds", "Spatial room tone"],
+              ["Professional voice isolation — clean delivery", "Subtle reverb tail", "Precise SFX timing"],
+              ["Score stinger on dramatic reveal", "Atmospheric transition sound", "Premium mix quality"],
+            ],
+            ambients: [
+              "Premium interior — subtle HVAC hum and spatial depth",
+              "Urban exterior — precise city layer at distance",
+              "Natural exterior — wind and environmental texture",
+              "Controlled studio — near silence with room tone",
+              "Industrial — precise machinery and space acoustics",
+            ],
+            musicBank: [
+              { track: "Epic hybrid orchestral", description: "Full orchestra with electronic elements — premium cinema", tempo: "80 BPM", key: "D minor", curve: "builds to cinematic swell" },
+              { track: "Minimal piano — emotional depth", description: "Solo piano with subtle string bed", tempo: "58 BPM", key: "C minor", curve: "contemplative, single emotional peak" },
+              { track: "Dramatic string statement", description: "Full string section — tension and gravity", tempo: "72 BPM", key: "E minor", curve: "builds through scene" },
+              { track: "Ambient electronic — modern cinematic", description: "Synthesiser layers with organic textures", tempo: "64 BPM", key: "A minor", curve: "evolving throughout" },
+              { track: "Orchestral revelation — climax", description: "Brass and strings — triumphant resolution", tempo: "92 BPM", key: "F major", curve: "powerful from mid-scene" },
+            ],
+            bgPalettes: ["neutral charcoal — premium cinematic", "deep midnight blue", "warm dark amber", "cool grey concrete", "muted teal-shadow"],
+            transitionBank: [
+              { between: "seamless match cut — professional editorial", impact: "lens flare on cut point" },
+              { between: "slow cross-dissolve — premium feel", impact: "subtle motion blur on transition" },
+              { between: "lens occlusion — object passes camera", impact: "brief blackout on emotional beat" },
+              { between: "J-cut — audio continuity", impact: "motion blur on fast cut" },
+              { between: "fade through black — chapter change", impact: "subtle colour shift on new scene" },
+            ],
+            look: "Photorealistic 3D rendering — accurate PBR materials, atmospheric depth, premium cinematic post-processing",
+            lens: "50mm anamorphic — natural perspective, subtle oval bokeh, cinematic lens character",
+            colorGrade: "Teal-orange complementary grade, deep blacks, clean highlights, neutral skin tones",
+            overlayStyle: "Minimal premium sans-serif — white on dark background, precise kerning, no decorative elements",
+            fontEnter: "fade in — opacity",
+            fontExit: "fade out — opacity",
+            vfxGrain: "subtle 35mm emulsion — premium cinematic texture",
+            vfxParticles: "atmospheric depth haze, subtle lens chromatic aberration on wide shots",
+            forbiddenElements: ["cartoon outlines", "cel shading", "anime effects", "hand-drawn textures", "paper overlays", "watercolour", "typewriter fonts"],
+          };
+        }
 
-      // ── Ambient sound bank ─────────────────────────────────────────────────
-      const ambients = [
-        "Low rumble of distant thunder",
-        "Soft wind across open battlefield at dusk",
-        "Muffled city sounds behind a veil of smoke",
-        "Quiet — broken only by distant artillery",
-        "Factory hum and steel forging sounds",
-        "Occupied city at night — tension-filled silence",
-        "Rain falling on rubble — desolate atmosphere",
-        "Early morning birdsong — fragile peace",
-      ];
+        // ── Anime ───────────────────────────────────────────────────────────
+        if (style.includes("anime")) {
+          return {
+            cameraMotions: [
+              "Dynamic pan with speed lines — action energy",
+              "Low dramatic angle — power moment",
+              "Wide emotional reveal — character and environment",
+              "Static contemplative shot — reflection beat",
+              "Quick whip-pan — dramatic transition",
+              "Slow close-up — character emotional state",
+              "Bird's eye perspective — scale and isolation",
+              "Tracking alongside movement — momentum",
+            ],
+            lightingMoods: [
+              { primary: "Dramatic sunset orange-purple gradient", secondary: "Deep cel-shade shadow cut", accents: "Bright eye-catchlight on character" },
+              { primary: "Cool blue — introspective moment", secondary: "Hard shadow line across face", accents: "Warm bloom on emotional peak" },
+              { primary: "Overcast white — tension and uncertainty", secondary: "Grey middle shadow", accents: "Single colour accent" },
+              { primary: "Night blue-black — mystery", secondary: "Moonlight rim on character", accents: "City light colour glow" },
+              { primary: "Golden backlight — heroic silhouette", secondary: "Warm ambient fill", accents: "Dramatic rim separating subject" },
+            ],
+            sfxSets: [
+              ["Wind whoosh on dramatic movement", "Impact bass hit", "Energy charge sound"],
+              ["Ambient Japanese environment sound", "Character action foley", "Dramatic silence before peak"],
+              ["Rain on pavement — contemplative", "Thunder accent", "Distant city noise"],
+              ["Paper or fabric flutter", "Sword or equipment sound", "Echo effect on power word"],
+              ["Crowd reaction — crowd foley", "Single dramatic bell", "Score sting on reveal"],
+            ],
+            ambients: [
+              "Japanese urban exterior — distant crowd, traffic, cicadas",
+              "Quiet interior — rain against window, contemplative",
+              "Open field — wind and nature — freedom and isolation",
+              "School or institutional interior — hallway ambience",
+              "Night city — neon environment, traffic drone",
+            ],
+            musicBank: [
+              { track: "Epic orchestral with synth", description: "Orchestra layered with electronic elements", tempo: "95 BPM", key: "A minor", curve: "builds to dramatic peak" },
+              { track: "Emotional piano motif", description: "Solo piano — character theme", tempo: "60 BPM", key: "D minor", curve: "quiet, single emotional swell" },
+              { track: "Driving percussion and strings", description: "Action-forward rhythm section", tempo: "120 BPM", key: "E minor", curve: "energetic throughout" },
+              { track: "Soft acoustic guitar — character moment", description: "Intimate acoustic with light strings", tempo: "68 BPM", key: "G major", curve: "warm and gentle" },
+              { track: "Chorus power theme", description: "Full ensemble — hero theme statement", tempo: "88 BPM", key: "B minor", curve: "triumphant swell at scene peak" },
+            ],
+            bgPalettes: ["sunset gradient orange-pink", "deep night blue-black", "cool overcast grey", "warm interior amber", "vivid environment saturated"],
+            transitionBank: [
+              { between: "speed line wipe — dynamic transition", impact: "energy burst frame on impact" },
+              { between: "flash transition — manga panel cut", impact: "freeze frame on dramatic moment" },
+              { between: "cross-dissolve — emotional beat", impact: "bloom effect on peak emotion" },
+              { between: "hard cut on action moment", impact: "impact frame — brief white flash" },
+              { between: "iris wipe — classic anime style", impact: "sparkle effect on transition" },
+            ],
+            look: "Cel-shaded anime aesthetic — bold outlines, vibrant saturated colours, expressive character rendering, dramatic shadow cuts",
+            lens: "24mm wide — dynamic perspective, expressive distortion on action, character-forward framing",
+            colorGrade: "Bold saturated palette, high contrast shadows, vibrant accent colours, dramatic sky gradients",
+            overlayStyle: "Bold weight sans-serif — strong contrast, character-coded colours, dramatic placement",
+            fontEnter: "slide in with speed lines",
+            fontExit: "fade out on cut",
+            vfxGrain: "none — clean anime cel aesthetic",
+            vfxParticles: "speed lines, dramatic wind particles, light bloom on power moments, cherry blossom or environment-appropriate particles",
+            forbiddenElements: ["photorealism", "war documentary aesthetics", "film grain", "typewriter fonts", "evidence boards", "archival look", "desaturated grades"],
+          };
+        }
 
-      // ── Music bank ────────────────────────────────────────────────────────
-      const musicBank = [
-        { track: "Somber orchestral strings", description: "Dark, suspenseful strings with slow pacing", tempo: "60 BPM", key: "D minor", curve: "slow crescendo" },
-        { track: "Melancholic piano underscore", description: "Single piano with sparse string accompaniment", tempo: "52 BPM", key: "A minor", curve: "steady and mournful" },
-        { track: "Tense brass and percussion", description: "Low brass tension with rhythmic percussion", tempo: "76 BPM", key: "E minor", curve: "builds through scene" },
-        { track: "Haunting choir and strings", description: "Wordless choir over slow string bed", tempo: "48 BPM", key: "B minor", curve: "peaks at mid-scene, fades" },
-        { track: "Driving orchestral underscore", description: "Full orchestral swell — strings, brass, timpani", tempo: "88 BPM", key: "G minor", curve: "strong swell at 4s, taper at 7s" },
-        { track: "Sparse cello solo", description: "Intimate solo cello — grief and resilience", tempo: "44 BPM", key: "C minor", curve: "quiet throughout, single peak" },
-        { track: "Percussion and low brass tension", description: "Staccato brass hits with sustained tension pad", tempo: "72 BPM", key: "F minor", curve: "urgent from start, peaks at 5s" },
-        { track: "Resolving orchestral theme", description: "Hopeful string motif resolving from minor to major", tempo: "64 BPM", key: "D minor → F major", curve: "rises and resolves at 6s" },
-      ];
+        // ── Documentary (default) ───────────────────────────────────────────
+        return {
+          cameraMotions: [
+            "Slow purposeful dolly toward subject",
+            "Static locked — weight and documentary authority",
+            "Subtle handheld — intimate documentary closeness",
+            "Tracking alongside subject movement",
+            "Wide establishing — context and location",
+            "Push-in on detail — discovery and revelation",
+            "Tilt reveal — scale and environment",
+            "Slow pan — landscape or environment survey",
+          ],
+          lightingMoods: [
+            { primary: "Natural window key — documentary realism", secondary: "Soft fill from opposite direction", accents: "Subtle rim separating subject" },
+            { primary: "Overcast natural light — honest and unmanipulated", secondary: "Neutral fill", accents: "Minimal practical accent" },
+            { primary: "Golden hour natural — warmth and humanity", secondary: "Long warm shadows", accents: "Gentle rim from sun direction" },
+            { primary: "Interior fluorescent — institutional reality", secondary: "Natural light from windows", accents: "Warm practical lamp accent" },
+            { primary: "Dramatic natural contrast — clear sky directional", secondary: "Deep natural shadow", accents: "Reflected bounce from environment" },
+          ],
+          sfxSets: [
+            ["Natural environment sound from location", "Human activity foley — footsteps, movement", "Ambient architectural detail"],
+            ["Location-specific texture sounds", "Quiet room tone — presence", "Subtle environment layer"],
+            ["Interview room ambience — neutral", "Paper or document handling", "Pen or writing sound"],
+            ["Urban exterior — distant city layer", "Natural wind and movement", "Door or space sound"],
+            ["Indoor quiet — breath and subtle movement", "Archival equipment sound if relevant", "Neutral room tone"],
+          ],
+          ambients: [
+            "Quiet interview environment — neutral room presence",
+            "Natural exterior — location-specific sound",
+            "Indoor institutional space — HVAC and presence",
+            "Urban environment — distant city texture",
+            "Natural landscape — wind, birds, environment",
+          ],
+          musicBank: [
+            { track: "Minimal piano — documentary underscore", description: "Single piano, neutral and supportive", tempo: "58 BPM", key: "D minor", curve: "gentle, supporting narration" },
+            { track: "Sparse strings — reflective", description: "String quartet, quiet and measured", tempo: "52 BPM", key: "A minor", curve: "contemplative throughout" },
+            { track: "Ambient texture — minimal", description: "Soft pad and minimal melodic element", tempo: "60 BPM", key: "E minor", curve: "steady support" },
+            { track: "Documentary strings — emotive", description: "String section with subtle brass", tempo: "66 BPM", key: "G minor", curve: "builds to emotional peak" },
+            { track: "Solo instrument — intimate", description: "Guitar or piano solo — personal", tempo: "50 BPM", key: "C minor", curve: "quiet throughout" },
+          ],
+          bgPalettes: ["natural neutral — location accurate", "warm earth tone", "cool exterior grey", "warm interior cream", "muted documentary grade"],
+          transitionBank: [
+            { between: "straight cut — invisible editorial", impact: "subtle audio transition" },
+            { between: "slow cross-dissolve — time passage", impact: "audio fade on dissolve" },
+            { between: "L-cut — audio leads next scene", impact: "audio bridge on transition" },
+            { between: "match cut — visual continuity", impact: "subtle sound bridge" },
+            { between: "fade through black — chapter mark", impact: "complete audio fade" },
+          ],
+          look: "Natural documentary aesthetic — realistic materials, accurate colour, minimal post-processing, cinema vérité quality",
+          lens: "50mm — natural human eye perspective, authentic documentary framing",
+          colorGrade: "Natural grade — warm highlights, accurate skin tones, minimal manipulation, consistent documentary palette",
+          overlayStyle: "Clean modern sans-serif — location and date captions, factual overlay only, never decorative",
+          fontEnter: "fade in — opacity",
+          fontExit: "fade out — opacity",
+          vfxGrain: "minimal film texture — authentic documentary look",
+          vfxParticles: "natural environment only — dust, atmosphere where physically present",
+          forbiddenElements: ["fantasy elements", "cartoon styles", "anime", "unrelated SFX", "invented characters", "fabricated locations", "military imagery unless script requires"],
+        };
+      };
 
-      // ── Background color bank (parchment palette) ─────────────────────────
-      const bgPalettes = [
-        "aged parchment beige",
-        "weathered sepia brown",
-        "pale ash grey parchment",
-        "worn antique ivory",
-        "faded linen cream",
-      ];
+      const styleDefaults = getStyleDefaults(selectedStyle);
+      const selectedStyleName = project.settings?.visualStyle || "Documentary";
 
-      // ── Transition bank ───────────────────────────────────────────────────
-      const transitionBank = [
-        { between: "ink bleed dissolve", impact: "quick red ink blot on high-impact moments" },
-        { between: "slow sepia cross-dissolve", impact: "single frame black ink splash" },
-        { between: "ink wipe left to right", impact: "ink burst on cannon/impact sounds" },
-        { between: "parchment burn transition", impact: "white ink flare on emotional beats" },
-        { between: "fade through black ink", impact: "subtle ink ripple on key phrases" },
-      ];
+      // ── Script-level tag extraction (from actual narration, not hardcoded lists)
+      const fullScriptText = preChunks.map(c => c.text).join(" ");
+      const scriptWords = fullScriptText.toLowerCase().split(/\W+/).filter(w => w.length > 4);
+      const scriptWordFreq: Record<string, number> = {};
+      scriptWords.forEach(w => { scriptWordFreq[w] = (scriptWordFreq[w] || 0) + 1; });
+      const topScriptWords = Object.entries(scriptWordFreq)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10)
+        .map(([w]) => w);
 
       preChunks.forEach((chunk, index) => {
         const beatNum = index + 1;
         const sceneId = chunk.id;
-        const paddedNum = String(beatNum).padStart(3, '0');
 
         newScenes.push({
           id: sceneId,
@@ -349,77 +603,76 @@ function LayoutContent() {
           visualDescription: `Beat ${beatNum} visual`
         });
 
-        // ── Derived values ─────────────────────────────────────────────────
-        const beatTitle = beatTitles[(index) % beatTitles.length];
-        const cameraMotion = cameraMotions[index % cameraMotions.length];
-        const lighting = lightingMoods[index % lightingMoods.length];
-        const sfx = sfxSets[index % sfxSets.length];
-        const ambient = ambients[index % ambients.length];
-        const music = musicBank[index % musicBank.length];
-        const bgPalette = bgPalettes[index % bgPalettes.length];
-        const transition = transitionBank[index % transitionBank.length];
+        // ── Style-derived values (indexed to provide variety, not generic cycling) ─
+        const cameraMotion = styleDefaults.cameraMotions[index % styleDefaults.cameraMotions.length];
+        const lighting = styleDefaults.lightingMoods[index % styleDefaults.lightingMoods.length];
+        const sfx = styleDefaults.sfxSets[index % styleDefaults.sfxSets.length];
+        const ambient = styleDefaults.ambients[index % styleDefaults.ambients.length];
+        const music = styleDefaults.musicBank[index % styleDefaults.musicBank.length];
+        const bgPalette = styleDefaults.bgPalettes[index % styleDefaults.bgPalettes.length];
+        const transition = styleDefaults.transitionBank[index % styleDefaults.transitionBank.length];
 
-        // Extract year/date if present in the narration
+        // ── Tags derived from actual narration words ───────────────────────
+        const chunkWords = chunk.text.toLowerCase().split(/\W+/).filter(w => w.length > 4);
+        const chunkTopWords = chunkWords
+          .filter(w => topScriptWords.includes(w))
+          .slice(0, 2);
+        const styleSafeTag = selectedStyleName.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+        const tags = [...new Set([...chunkTopWords, styleSafeTag])].slice(0, 3);
+
+        // ── Extract year/date from narration ──────────────────────────────
         const yearMatch = chunk.text.match(/\b(19[0-9]{2}|20[0-9]{2})\b/);
         const subtextDate = yearMatch ? yearMatch[0] : `Beat ${beatNum} of ${preChunks.length}`;
 
-        // Extract location/theme keywords for tags
-        const locationKeywords = (chunk.text.match(/\b(Poland|London|Berlin|France|Europe|Pacific|Africa|Eastern|Western|occupied)\b/gi) || []);
-        const themeKeywords = (chunk.text.match(/\b(invasion|battle|resistance|sacrifice|victory|liberation|silence|memory|courage|mobilization)\b/gi) || []);
-        const allKeywords = [...new Set([...locationKeywords, ...themeKeywords].map(w => w.toLowerCase()))];
-        const tags: string[] = allKeywords.slice(0, 2);
-        if (tags.length < 3) tags.push("historical-documentary");
-        if (tags.length < 3) tags.push("world-war-ii");
-
-        // Safe first words for composition/timeline
-        const words = chunk.text.split(' ');
+        // ── Beat title derived from narration — never from military bank ───
+        const words = chunk.text.trim().split(/\s+/);
         const openWords = makePolicySafe(words.slice(0, 6).join(' '));
         const midWords = makePolicySafe(words.slice(Math.floor(words.length / 2), Math.floor(words.length / 2) + 5).join(' '));
         const wordCount = words.length;
         const durationSec = Math.max(7, Math.min(10, Math.round(wordCount / 3)));
 
-        // ── Timeline actions — parchment ink style, beat-specific ─────────
+        // Timeline derived from style and narration pacing
         const timelineActions = [
-          `Ink bleeds across parchment to reveal opening scene — ${openWords}`,
-          `Main ink illustration emerges — ${cameraMotion}`,
-          `Camera slows on emotional beat — key ink detail highlighted`,
-          `${makePolicySafe(midWords)} — secondary scene element drawn in ink`,
-          `Atmospheric ink particles drift — tension builds in scene`,
-          `Lower-third ink overlay appears — title: "${beatTitle}"`,
-          `Ink fades as scene closes — transition prepares for next beat`
+          `${selectedStyleName} — scene opens: ${openWords}`,
+          `${cameraMotion} begins — primary subject revealed`,
+          `Emotional beat develops — key detail in focus`,
+          `${makePolicySafe(midWords)} — scene deepens`,
+          `Audio and visual synchronize — narrative peak`,
+          `Scene resolves — ${transition.between} prepares`,
+          `${transition.between} — next beat begins`
         ];
 
         newPrompts[sceneId] = {
           json: JSON.stringify({
-            "scene": `Beat ${beatNum} – ${beatTitle}`,
-            "style": `${project.settings?.visualStyle || "Historical Documentary"} – archival ink animation on aged parchment`,
-            "color_grade": makePolicySafe(project.settings?.colorPalette || "aged parchment beige, dark ink shadows, sepia tones"),
+            "scene": `Beat ${beatNum} — ${selectedStyleName}`,
+            "style": `${selectedStyleName}`,
+            "color_grade": makePolicySafe(project.settings?.colorPalette || styleDefaults.colorGrade),
             "shot": {
               "composition": makePolicySafe(`${cameraMotion} — ${openWords}`),
               "camera_motion": cameraMotion,
               "frame_rate": "24 fps",
               "resolution": "1920 × 1080",
-              "lens": "2D painterly aesthetic with soft ink bleed edges",
-              "look": "hand-drawn brush strokes on textured parchment, ink bleed animation"
+              "lens": styleDefaults.lens,
+              "look": styleDefaults.look
             },
             "voice_over": {
               "language": "English",
-              "tone": "Grave, historical",
+              "tone": "Documentary narrative",
               "mode": "Narrative, explanatory",
-              "emotion": "Serious, urgent",
+              "emotion": "Contextual — derived from beat",
               "narration_text": chunk.text,
               "duration_sec": String(durationSec)
             },
             "house_settings": {
               "typeface": {
-                "hook": beatTitle,
+                "hook": openWords,
                 "subtext": subtextDate
               },
-              "overlay_style": "Subtle ink overlay on parchment — lower third only, no border",
+              "overlay_style": styleDefaults.overlayStyle,
               "animation": {
-                "enter": "ink stroke spread",
+                "enter": styleDefaults.fontEnter,
                 "enter_duration_ms": 600,
-                "exit": "ink slash wipe",
+                "exit": styleDefaults.fontExit,
                 "exit_duration_ms": 500
               },
               "callouts": { "stroke_px": 0, "corner_radius_px": 0 },
@@ -461,39 +714,39 @@ function LayoutContent() {
             },
             "text_rules": {
               "emoji_policy": "no emojis",
-              "contrast": "black ink text on light parchment background"
+              "contrast": "high contrast text readable on style background"
             },
             "color_palette": {
               "background": project.settings?.colorPalette ? makePolicySafe(project.settings.colorPalette) : bgPalette,
-              "ink_primary": project.settings?.colorPrimary || "#111111",
-              "ink_secondary": project.settings?.colorSecondary || "#444444",
-              "splatter": project.settings?.colorAccent || "#222222",
-              "text_primary": "#111111"
+              "primary": project.settings?.colorPrimary || "#111111",
+              "secondary": project.settings?.colorSecondary || "#444444",
+              "accent": project.settings?.colorAccent || "#222222",
+              "text_primary": "#FFFFFF"
             },
             "transitions": {
               "between_scenes": transition.between,
               "impact_frame_usage": transition.impact,
-              "forbidden": ["glitch", "marker squeaks", "cartoon pops"]
+              "forbidden": styleDefaults.forbiddenElements.slice(0, 3)
             },
             "vfx_rules": {
-              "grain": "light ink texture grain over parchment",
-              "particles": "subtle ash-like specks drifting across frame",
-              "camera_shake": "very slight rumble during impact sounds only"
+              "grain": styleDefaults.vfxGrain,
+              "particles": styleDefaults.vfxParticles,
+              "camera_shake": "very subtle — only on high-intensity emotional moments"
             },
             "visual_rules": {
-              "prohibited_elements": ["3D dinos", "cartoon outlines", "logos"],
-              "grain": "natural ink bleed texture",
-              "sharpen": "medium to enhance parchment fibers"
+              "prohibited_elements": styleDefaults.forbiddenElements,
+              "rendering": styleDefaults.look,
+              "style_lock": selectedStyleName
             },
             "export": {
               "preset": "1920x1080_h264_high",
               "target_duration_sec": String(durationSec)
             },
             "metadata": {
-              "series": makePolicySafe(project.title || "World War II Documentary Series"),
-              "task": `Beat ${beatNum} – ${beatTitle}`,
+              "series": makePolicySafe(project.title || selectedStyleName),
+              "task": `Beat ${beatNum} — ${selectedStyleName}`,
               "scene_number": String(beatNum),
-              "tags": tags.slice(0, 3)
+              "tags": tags
             }
           }, null, 2)
         };
@@ -511,24 +764,87 @@ function LayoutContent() {
     }, 3000);
   };
 
+
+
   return (
     <div className="flex flex-col h-full bg-[#F8F9FA] w-full text-foreground font-sans relative">
       
       {/* Top Progress Bar */}
-      <div className="sticky top-0 z-40 w-full bg-white border-b border-gray-200 py-4 px-8 flex items-center justify-center space-x-4 shadow-sm">
-        <div className="flex items-center space-x-2">
-          <div className={`flex h-8 w-8 items-center justify-center rounded-full font-bold text-sm ${currentStep >= 1 ? 'bg-red-600 text-white' : 'border-2 border-gray-300 text-gray-500'}`}>1</div>
-          <span className={`text-sm ${currentStep >= 1 ? 'font-semibold text-gray-900' : 'font-medium text-gray-500'}`}>Configure</span>
+      <div className="sticky top-0 z-40 w-full bg-white border-b border-gray-200 py-4 px-8 flex items-center justify-between shadow-sm">
+        <div className="w-24"></div> {/* Spacer for centering */}
+        
+        <div className="flex items-center justify-center space-x-4">
+          <div className="flex items-center space-x-2">
+            <div className={`flex h-8 w-8 items-center justify-center rounded-full font-bold text-sm ${currentStep >= 1 ? 'bg-red-600 text-white' : 'border-2 border-gray-300 text-gray-500'}`}>1</div>
+            <span className={`text-sm ${currentStep >= 1 ? 'font-semibold text-gray-900' : 'font-medium text-gray-500'}`}>Configure</span>
+          </div>
+          <div className={`w-32 sm:w-48 h-px ${currentStep >= 2 ? 'bg-red-600' : 'bg-gray-200'}`}></div>
+          <div className={`flex items-center space-x-2 ${currentStep < 2 ? 'opacity-50' : ''}`}>
+            <div className={`flex h-8 w-8 items-center justify-center rounded-full font-bold text-sm ${currentStep >= 2 ? 'bg-red-600 text-white' : 'border-2 border-gray-300 text-gray-500'}`}>2</div>
+            <span className={`text-sm ${currentStep >= 2 ? 'font-semibold text-gray-900' : 'font-medium text-gray-500'}`}>Generating</span>
+          </div>
+          <div className={`w-32 sm:w-48 h-px ${currentStep >= 3 ? 'bg-red-600' : 'bg-gray-200'}`}></div>
+          <div className={`flex items-center space-x-2 ${currentStep < 3 ? 'opacity-50' : ''}`}>
+            <div className={`flex h-8 w-8 items-center justify-center rounded-full font-bold text-sm ${currentStep >= 3 ? 'bg-red-600 text-white' : 'border-2 border-gray-300 text-gray-500'}`}>3</div>
+            <span className={`text-sm ${currentStep >= 3 ? 'font-semibold text-gray-900' : 'font-medium text-gray-500'}`}>Results</span>
+          </div>
         </div>
-        <div className={`w-48 h-px ${currentStep >= 2 ? 'bg-red-600' : 'bg-gray-200'}`}></div>
-        <div className={`flex items-center space-x-2 ${currentStep < 2 ? 'opacity-50' : ''}`}>
-          <div className={`flex h-8 w-8 items-center justify-center rounded-full font-bold text-sm ${currentStep >= 2 ? 'bg-red-600 text-white' : 'border-2 border-gray-300 text-gray-500'}`}>2</div>
-          <span className={`text-sm ${currentStep >= 2 ? 'font-semibold text-gray-900' : 'font-medium text-gray-500'}`}>Generating</span>
-        </div>
-        <div className={`w-48 h-px ${currentStep >= 3 ? 'bg-red-600' : 'bg-gray-200'}`}></div>
-        <div className={`flex items-center space-x-2 ${currentStep < 3 ? 'opacity-50' : ''}`}>
-          <div className={`flex h-8 w-8 items-center justify-center rounded-full font-bold text-sm ${currentStep >= 3 ? 'bg-red-600 text-white' : 'border-2 border-gray-300 text-gray-500'}`}>3</div>
-          <span className={`text-sm ${currentStep >= 3 ? 'font-semibold text-gray-900' : 'font-medium text-gray-500'}`}>Results</span>
+        <div className="w-24 flex justify-end gap-2">
+          <Sheet>
+            <SheetTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-2 text-gray-600 border-gray-300">
+                <History className="w-4 h-4" />
+                <span className="hidden sm:inline">History</span>
+              </Button>
+            </SheetTrigger>
+            <SheetContent className="w-[400px] sm:w-[540px] overflow-y-auto">
+              <SheetHeader>
+                <SheetTitle>Project History</SheetTitle>
+                <SheetDescription>
+                  Restore previously generated projects and prompts.
+                </SheetDescription>
+              </SheetHeader>
+              <div className="mt-6 space-y-4">
+                {(!history || history.length === 0) ? (
+                  <p className="text-sm text-gray-500 text-center py-10">No history found.</p>
+                ) : (
+                  history.map(proj => (
+                    <div key={proj.id} className="border rounded-lg p-4 hover:border-red-400 transition-colors bg-gray-50/50 relative group">
+                      <div className="flex justify-between items-start mb-2">
+                        <h4 className="font-bold text-sm text-gray-900 truncate pr-8">{proj.title || "Untitled Project"}</h4>
+                        <span className="text-xs text-gray-400 shrink-0">{new Date(proj.updatedAt).toLocaleDateString()}</span>
+                      </div>
+                      <p className="text-xs text-gray-500 line-clamp-2 mb-3">{proj.rawScript || "No script content."}</p>
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs font-mono bg-white border px-2 py-1 rounded text-gray-600">
+                          {Object.keys(proj.prompts || {}).length} Beats
+                        </span>
+                        <div className="flex gap-2">
+                          <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => deleteProject(proj.id)}>
+                            Delete
+                          </Button>
+                          <SheetTrigger asChild>
+                            <Button size="sm" className="h-7 text-xs bg-red-600 hover:bg-red-700 text-white" onClick={() => { loadProject(proj.id); setCurrentStep(Object.keys(proj.prompts || {}).length > 0 ? 3 : 1); toast.success("Project loaded"); }}>
+                              Load
+                            </Button>
+                          </SheetTrigger>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </SheetContent>
+          </Sheet>
+          <div className="pt-1">
+            <ActiveProviderBadge 
+              featureKey="prompt_generator" 
+              moduleName="Prompt Generator" 
+              subFeatures={[
+                { key: 'generator.prompt_builder', label: 'Prompt Builder' }
+              ]}
+            />
+          </div>
         </div>
       </div>
 

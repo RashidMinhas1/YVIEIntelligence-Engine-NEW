@@ -64,6 +64,9 @@ interface GeneratorContextType {
   setProject: React.Dispatch<React.SetStateAction<ProjectState>>;
   isSaving: boolean;
   saveProject: () => Promise<void>;
+  history: ProjectState[];
+  loadProject: (id: string) => void;
+  deleteProject: (id: string) => void;
 }
 
 const DEFAULT_SETTINGS: PromptSettings = {
@@ -94,6 +97,17 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
   const [activeTab, setActiveTab] = useState<GeneratorTab>("import");
   const [project, setProject] = useState<ProjectState>(DEFAULT_PROJECT);
   const [isSaving, setIsSaving] = useState(false);
+  const [history, setHistory] = useState<ProjectState[]>([]);
+
+  useEffect(() => {
+    // Load history
+    const savedHistory = localStorage.getItem("prompt_generator_history");
+    if (savedHistory) {
+      try {
+        setHistory(JSON.parse(savedHistory));
+      } catch (e) {}
+    }
+  }, []);
 
   useEffect(() => {
     // Load draft logic would go here
@@ -111,8 +125,41 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
     setIsSaving(true);
     // Simulate API delay
     await new Promise(r => setTimeout(r, 500));
-    localStorage.setItem("prompt_generator_draft", JSON.stringify(project));
+    const projToSave = { ...project, updatedAt: new Date().toISOString() };
+    localStorage.setItem("prompt_generator_draft", JSON.stringify(projToSave));
+    
+    // Update history
+    setHistory(prev => {
+      const existingIdx = prev.findIndex(p => p.id === projToSave.id);
+      let newHistory = [...prev];
+      if (existingIdx >= 0) {
+        newHistory[existingIdx] = projToSave;
+      } else {
+        newHistory.unshift(projToSave);
+      }
+      localStorage.setItem("prompt_generator_history", JSON.stringify(newHistory));
+      return newHistory;
+    });
+
     setIsSaving(false);
+  };
+
+  const loadProject = (id: string) => {
+    const found = history.find(p => p.id === id);
+    if (found) {
+      setProject(found);
+    }
+  };
+
+  const deleteProject = (id: string) => {
+    setHistory(prev => {
+      const newHistory = prev.filter(p => p.id !== id);
+      localStorage.setItem("prompt_generator_history", JSON.stringify(newHistory));
+      return newHistory;
+    });
+    if (project.id === id) {
+      setProject(p => ({ ...DEFAULT_PROJECT, id: crypto.randomUUID(), updatedAt: new Date().toISOString() }));
+    }
   };
 
   // Auto-save logic
@@ -133,6 +180,9 @@ export function GeneratorProvider({ children }: { children: React.ReactNode }) {
         setProject,
         isSaving,
         saveProject,
+        history,
+        loadProject,
+        deleteProject,
       }}
     >
       {children}

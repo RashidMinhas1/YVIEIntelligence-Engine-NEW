@@ -118,6 +118,10 @@ export interface ChannelDiscoveryFilters {
   channelAge?: "New" | "30 Days" | "90 Days" | "6 Months" | "1 Year" | "2 Years" | "3 Years" | "5 Years" | "10+ Years" | "Custom";
   channelAgeCustomMin?: string;
   channelAgeCustomMax?: string;
+  maxChannelAge?: number;
+  maxChannelAgeUnit?: "days" | "weeks" | "months" | "years";
+  minRecentViews?: number;
+  recentVideoCount?: number;
   
   // Growth
   growthStatus?: "Exploding" | "Fast Growing" | "Growing" | "Stable" | "Declining" | "Inactive" | "Dead" | "Revived";

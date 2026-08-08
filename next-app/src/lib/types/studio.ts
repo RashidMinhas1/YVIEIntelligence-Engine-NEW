@@ -1,8 +1,47 @@
+export type AIGenerationStatus = 'Waiting' | 'Generating' | 'Completed' | 'Regenerated' | 'Failed';
+
+export interface AIAuditMetadata {
+  timestamp: string;
+  provider: string;
+  modelName: string;
+  promptVersion: string;
+  generatorModule: string;
+  validationStatus: string;
+  regenerationCount: number;
+  versionNumber: number;
+}
+
+export interface FlowIntelligence {
+  continuityScore: number;
+  issues: string[];
+  recommendations: string[];
+}
+
+export interface AssetIntelligence {
+  characters: string[];
+  locations: string[];
+  objects: string[];
+  reuseSuggestions: string[];
+}
+
+export interface SceneIntelligence {
+  hookStrength: number;        // 0-100
+  visualImpact: number;        // 0-100
+  retentionScore: number;      // 0-100
+  productionDifficulty: number;// 0-100
+  emotionalImpact: number;     // 0-100
+  riskFlags: string[];
+  suggestions: string[];
+  flow?: FlowIntelligence;
+  assets?: AssetIntelligence;
+}
+
 export interface ScriptSection {
   id: string;
   type: string; // e.g., 'Hook', 'Intro', 'Story', 'Body', 'CTA', 'Scene 1'
   content: string; // Script Chunk
   isExpanded?: boolean;
+  intelligence?: SceneIntelligence;
   
   // Base Fields
   sceneNumber?: number;
@@ -19,6 +58,10 @@ export interface ScriptSection {
   colorPalette?: string;
   mood?: string;
   emotion?: string;
+  // New fields for AI generation
+  artDirection?: string;
+  motion?: string;
+  postProduction?: string;
   
   // Camera Fields
   cameraDirection?: string;
@@ -43,6 +86,7 @@ export interface ScriptSection {
   
   // AI Image Prompt Fields
   aiPrompt?: string; // Professional AI Image Prompt
+  sceneImagePrompts?: string[]; // 1-3 distinct image prompts
   negativePrompt?: string;
   thumbnailConsistency?: string;
   
@@ -57,6 +101,12 @@ export interface ScriptSection {
   curiosityLevel?: string;
   zoomMotion?: string;
   aiSuggestions?: string[];
+  
+  // Advanced AI Architecture
+  lockedFields?: Record<string, boolean>;
+  generationStatus?: Record<string, AIGenerationStatus>;
+  versionHistory?: Record<string, any[]>; // Array of previous generations
+  aiMetadata?: Record<string, AIAuditMetadata>;
 }
 
 export interface ResearchSource {
@@ -155,6 +205,12 @@ export interface ThumbnailConcept {
 
   // Analysis
   readinessScore?: ThumbnailReadinessScore;
+
+  // Advanced AI Architecture
+  lockedFields?: Record<string, boolean>;
+  generationStatus?: Record<string, AIGenerationStatus>;
+  versionHistory?: Record<string, any[]>;
+  aiMetadata?: Record<string, AIAuditMetadata>;
 }
 
 export interface GeneratedTitle {
@@ -232,6 +288,13 @@ export interface StudioProject {
   timelineAnalysis?: TimelineAnalysis;
   production?: ProductionData;
   updatedAt: string;
+  
+  // Project-level Advanced AI Architecture
+  lockedFields?: Record<string, boolean>;
+  generationStatus?: Record<string, AIGenerationStatus>;
+  versionHistory?: Record<string, any[]>;
+  aiMetadata?: Record<string, AIAuditMetadata>;
+  actionableRecommendations?: ActionableRecommendation[];
 }
 
 export interface StudioAnalysis {
@@ -243,4 +306,18 @@ export interface StudioAnalysis {
   wordCount: number;
   estimatedReadingTime: string;
   suggestions: string[];
+}
+
+export interface ActionableRecommendation {
+  id: string;
+  tab: 'script' | 'storyboard' | 'thumbnail' | 'production';
+  context: string;
+  issue: string;
+  suggestion: string;
+  applied: boolean;
+  actionPayload: {
+    type: 'UPDATE_SECTION_CONTENT' | 'UPDATE_THUMBNAIL_PROMPT' | 'UPDATE_TITLE' | 'ADD_CHECKLIST_ITEM';
+    targetId: string;
+    newValue: string;
+  };
 }

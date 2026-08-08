@@ -18,6 +18,7 @@ import {
 import { useJob } from "@/hooks/use-job";
 import { JobProgress } from "@/components/ui/job-progress";
 import { toast } from "sonner";
+import { ActiveProviderBadge } from "@/components/ActiveProviderBadge";
 
 interface ScriptEditorPanelProps {
   project: StudioProject;
@@ -144,6 +145,17 @@ export function ScriptEditorPanel({
           </div>
         </div>
         <div className="flex gap-2 items-center">
+          <ActiveProviderBadge 
+            featureKey="studio" 
+            moduleName="Creator Studio" 
+            subFeatures={[
+              { key: 'studio.ai_task', label: 'Script Editor AI Assistant' },
+              { key: 'studio.analyze_task', label: 'Retention & Pacing Analyzer' },
+              { key: 'studio.storyboard_generate', label: 'Storyboard Scene Generator' },
+              { key: 'studio.thumbnail_ideator', label: 'Thumbnail AI Ideator' },
+              { key: 'studio.research_generate', label: 'Research & Hook Generator' }
+            ]}
+          />
           <Button variant="ghost" size="sm" onClick={expandAll}>Expand All</Button>
           <Button variant="ghost" size="sm" onClick={collapseAll}>Collapse All</Button>
           <DropdownMenu>

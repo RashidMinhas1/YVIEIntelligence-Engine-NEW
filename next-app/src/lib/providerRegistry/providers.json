@@ -1,0 +1,115 @@
+[
+  {
+    "id": "openai",
+    "name": "OpenAI",
+    "category": "official",
+    "baseUrl": "https://api.openai.com",
+    "authMethod": "apiKey",
+    "endpoints": {
+      "models": "/v1/models",
+      "chat": "/v1/chat/completions",
+      "embeddings": "/v1/embeddings",
+      "images": "/v1/images/generations"
+    },
+    "streaming": true,
+    "pricing": "paid",
+    "rateLimits": { "requestsPerMinute": 3500 },
+    "healthStatus": "online"
+  },
+  {
+    "id": "gemini",
+    "name": "Gemini",
+    "category": "official",
+    "baseUrl": "https://generativelanguage.googleapis.com",
+    "authMethod": "apiKey",
+    "endpoints": {
+      "models": "/v1beta/models",
+      "chat": "/v1beta/models/{model}:generateContent"
+    },
+    "streaming": false,
+    "pricing": "paid",
+    "rateLimits": { "requestsPerMinute": 600 },
+    "healthStatus": "online"
+  },
+  {
+    "id": "anthropic",
+    "name": "Anthropic",
+    "category": "official",
+    "baseUrl": "https://api.anthropic.com",
+    "authMethod": "apiKey",
+    "endpoints": {
+      "models": "/v1/models",
+      "chat": "/v1/messages"
+    },
+    "streaming": true,
+    "pricing": "paid",
+    "healthStatus": "online"
+  },
+  {
+    "id": "openrouter",
+    "name": "OpenRouter",
+    "category": "official",
+    "baseUrl": "https://openrouter.ai/api",
+    "authMethod": "apiKey",
+    "endpoints": {
+      "models": "/v1/models",
+      "chat": "/v1/chat/completions"
+    },
+    "streaming": true,
+    "pricing": "mixed",
+    "healthStatus": "online"
+  },
+  {
+    "id": "xai",
+    "name": "xAI (Grok)",
+    "category": "official",
+    "baseUrl": "https://api.x.ai",
+    "authMethod": "apiKey",
+    "endpoints": {
+      "models": "/v1/models",
+      "chat": "/v1/chat/completions"
+    },
+    "streaming": true,
+    "pricing": "paid",
+    "healthStatus": "online"
+  },
+  {
+    "id": "github",
+    "name": "GitHub Models",
+    "category": "official",
+    "baseUrl": "https://api.github.com",
+    "authMethod": "oauth",
+    "endpoints": {
+      "models": "/repos/your-org/your-repo/models",
+      "chat": "/repos/your-org/your-repo/chat"
+    },
+    "streaming": false,
+    "pricing": "free",
+    "healthStatus": "offline"
+  },
+  {
+    "id": "ollama",
+    "name": "Ollama",
+    "category": "official",
+    "baseUrl": "http://localhost:11434",
+    "authMethod": "none",
+    "endpoints": {
+      "models": "/api/tags",
+      "chat": "/api/chat"
+    },
+    "streaming": true,
+    "pricing": "free",
+    "healthStatus": "online"
+  },
+  {
+    "id": "generic",
+    "name": "Generic REST API",
+    "category": "official",
+    "baseUrl": "",
+    "authMethod": "none",
+    "endpoints": { "models": "/v1/models", "chat": "/v1/chat" },
+    "streaming": false,
+    "pricing": "mixed",
+    "healthStatus": "online"
+  }
+]

@@ -1,216 +1,216 @@
-import { getAISettings } from "./settings";
-import { getHealth, ModelHealth } from "./health";
+import { AIProvider, AIRequestOptions } from "./types";
+import { getAISettings, CustomProviderConfig, AISettings } from "./settings";
+import { logAITelemetry, globalActiveRequests } from "./telemetry";
+import { OpenAIProvider } from "./providers/openai";
+import { GeminiProvider } from "./providers/gemini";
+import { OpenRouterProvider } from "./providers/openrouter";
+import { GenericOpenAIProvider } from "./providers/generic-openai";
+import { aiEventBus } from "./event-bus";
+import { aiCache } from "./cache";
+import { aiCostGuard } from "./cost-guard";
+import { featureRegistry } from "./profiles";
 
-// In-memory cache for dynamically fetched models
-const modelCache: Map<string, { id: string, name: string, isFree?: boolean }[]> = new Map();
-let cacheTimestamp = 0;
+export class AIRouter {
+  private static instance: AIRouter;
+  
+  private constructor() {}
 
-export async function fetchAllProviderModels(provider: string, apiKey: string, forceRefresh = false) {
-  const cacheKey = provider;
-  if (!forceRefresh && modelCache.has(cacheKey) && Date.now() - cacheTimestamp < 1000 * 60 * 60) {
-    return modelCache.get(cacheKey)!;
-  }
-
-  let models: { id: string, name: string, isFree?: boolean }[] = [];
-  try {
-    if (provider === "openai") {
-      const OpenAI = (await import("openai")).default;
-      const client = new OpenAI({ apiKey, dangerouslyAllowBrowser: true });
-      const res = await client.models.list();
-      models = res.data.map(m => ({ id: m.id, name: m.id, isFree: false }));
-    } else if (provider === "gemini") {
-      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
-      const data = await res.json();
-      models = (data.models || [])
-        .filter((m: any) => m.supportedGenerationMethods?.includes("generateContent"))
-        .map((m: any) => ({ id: m.name.replace("models/", ""), name: m.displayName || m.name, isFree: false }));
-    } else if (provider === "openrouter") {
-      const res = await fetch("https://openrouter.ai/api/v1/models");
-      const data = await res.json();
-      models = (data.data || []).map((m: any) => ({
-        id: m.id,
-        name: m.name,
-        isFree: m.pricing?.prompt === "0" && m.pricing?.completion === "0"
-      }));
+  public static getInstance(): AIRouter {
+    if (!AIRouter.instance) {
+      AIRouter.instance = new AIRouter();
     }
-    modelCache.set(cacheKey, models);
-    cacheTimestamp = Date.now();
-  } catch (err) {
-    console.error(`[Router] Failed to fetch models for ${provider}:`, err);
+    return AIRouter.instance;
   }
-  return models;
-}
 
-export type FallbackCandidate = { provider: string, model: string, apiKey: string };
+  private instantiateProvider(providerId: string, config: CustomProviderConfig): AIProvider {
+    switch (config.providerType) {
+      case "openai": return new OpenAIProvider(config);
+      case "gemini": return new GeminiProvider(config);
+      case "openrouter": return new OpenRouterProvider(config);
+      case "openai-compatible":
+      case "ollama":
+      case "lmstudio":
+      case "vllm":
+      case "custom":
+      default: return new GenericOpenAIProvider(config);
+    }
+  }
 
-function scoreModel(health: ModelHealth, isFree: boolean): number {
-  const successRate = health.successCount + health.failureCount === 0 
-    ? 1 
-    : health.successCount / (health.successCount + health.failureCount);
+  private getRoutingHierarchy(settings: AISettings, featureKey?: string) {
+    // Priority: Manual Override -> Feature Override (Project) -> Feature Override (Workflow) -> Project Default -> Workflow Default -> Global Default
+    let providerId = settings.activeProvider;
+    let modelOverride: string | undefined = undefined;
+
+    // 1. Check active workflow profile
+    const profile = settings.activeProfileId ? settings.profiles?.[settings.activeProfileId] : undefined;
     
-  const avgResponseTime = health.successCount === 0 
-    ? 5000 
-    : health.totalResponseTimeMs / health.successCount;
+    // 2. Check active project profile (Mocking global state for now, assuming activeProjectId)
+    const project = (settings as any).activeProjectId ? (settings as any).projects?.[(settings as any).activeProjectId] : undefined;
 
-  const tokensPerSec = health.totalTokenTimeMs === 0 || health.totalTokens === 0
-    ? 50
-    : (health.totalTokens / health.totalTokenTimeMs) * 1000;
+    if (profile && profile.features && featureKey && profile.features[featureKey]?.provider) {
+      providerId = profile.features[featureKey].provider;
+      modelOverride = profile.features[featureKey].model;
+    }
+
+    if (project && project.features && featureKey && project.features[featureKey]?.provider) {
+      providerId = project.features[featureKey].provider;
+      modelOverride = project.features[featureKey].model;
+    }
+
+    // 3. Global feature override (legacy support)
+    if (!providerId && featureKey && settings.features?.[featureKey]?.provider) {
+      providerId = settings.features[featureKey].provider;
+      modelOverride = settings.features[featureKey].model;
+    }
+
+    return { providerId, modelOverride };
+  }
+
+  private selectProvider(settings: AISettings, featureKey?: string): { id: string; config: CustomProviderConfig; model?: string } {
+    const { providerId, modelOverride } = this.getRoutingHierarchy(settings, featureKey);
+
+    if (providerId && settings.providers?.[providerId]?.isEnabled) {
+      return { id: providerId, config: settings.providers[providerId], model: modelOverride };
+    }
+
+    // Fallback to first enabled provider
+    const enabledProviders = Object.entries(settings.providers || {}).filter(([_, config]) => config.isEnabled);
+    if (enabledProviders.length > 0) {
+      enabledProviders.sort((a, b) => (b[1].priority || 0) - (a[1].priority || 0));
+      return { id: enabledProviders[0][0], config: enabledProviders[0][1], model: modelOverride };
+    }
+
+    throw new Error("No enabled AI providers found. Please configure a provider in Settings.");
+  }
+
+  public async generateText(prompt: string, options: AIRequestOptions = {}): Promise<string> {
+    const settings = getAISettings();
+    const startTime = Date.now();
     
-  // Unified normalized score
-  let score = successRate * 10000;
-  
-  // Latency penalty
-  score -= avgResponseTime;
-
-  // Speed Bonus
-  score += tokensPerSec * 10;
-  
-  // Timeout Penalty
-  score -= (health.timeoutCount * 5000);
-  
-  // Free preference
-  if (isFree) {
-    score += 5000;
-  }
-  
-  // Circuit breaker state penalty
-  if (health.state === "HALF_OPEN") {
-    score -= 2000;
-  }
-  
-  // Recent performance penalty
-  score -= (health.consecutiveFailures * 1000);
-  
-  return score;
-}
-
-// Phase 3: Feature-Based Routing mappings
-export type TaskCategory = "fast" | "large_context" | "reasoning" | "vision" | "translation" | "json_generation" | "cost_optimized";
-
-function getFeatureOptimalModels(category?: string): string[] {
-  switch (category as TaskCategory) {
-    case "fast":
-       return ["gemini-2.5-flash", "gemini-1.5-flash", "gpt-4o-mini", "claude-3-haiku"];
-    case "large_context":
-       return ["gemini-1.5-pro", "claude-3.5-sonnet"];
-    case "reasoning":
-       return ["o1-preview", "o1-mini", "gpt-4o", "claude-3.5-sonnet", "gemini-1.5-pro"];
-    case "vision":
-       return ["gpt-4o", "gemini-1.5-pro"]; 
-    case "translation":
-       return ["gemini-1.5-pro", "gpt-4o", "claude-3.5-sonnet"];
-    case "json_generation":
-       return ["gpt-4o", "gemini-1.5-pro", "gemini-1.5-flash"];
-    case "cost_optimized":
-       return ["gemini-1.5-flash", "gpt-4o-mini", "claude-3-haiku"];
-    default:
-       return [];
-  }
-}
-
-export async function getSmartRoutingChain(featureKey?: string): Promise<FallbackCandidate[]> {
-  const settings = getAISettings();
-  let primaryProvider = settings.activeProvider || "gemini";
-  let primaryModel = settings.providers?.[primaryProvider as keyof typeof settings.providers]?.model || null;
-
-  let loadBalancingStrategy = settings.providers?.[primaryProvider as keyof typeof settings.providers]?.loadBalancingStrategy || "round_robin";
-
-  // Feature-level overrides from user
-  let localApiKeys: string[] | undefined;
-  if (featureKey && settings.features?.[featureKey]) {
-    const override = settings.features[featureKey];
-    if (override.isLocalOverrideEnabled !== false) {
-      if (override.provider && override.provider !== "auto") primaryProvider = override.provider;
-      if (override.model && override.model !== "auto") primaryModel = override.model;
-      if (override.apiKeys && override.apiKeys.length > 0) localApiKeys = override.apiKeys;
-      if (override.loadBalancingStrategy) loadBalancingStrategy = override.loadBalancingStrategy;
+    // 1. Auto-register feature
+    if (options.featureKey) {
+      featureRegistry.register(options.featureKey);
     }
-  }
 
-  const fallbackOrder = ["gemini", "openrouter", "openai"];
-  const providerOrder = [primaryProvider, ...fallbackOrder.filter(p => p !== primaryProvider)];
-
-  const chain: FallbackCandidate[] = [];
-  const added = new Set<string>();
-
-  const addCandidate = (p: string, m: string, key: string) => {
-    const uniqueId = `${p}:${m}:${key}`;
-    if (!added.has(uniqueId)) {
-      const health = getHealth(p, m, key);
-      if (health.state === "CLOSED" || health.state === "HALF_OPEN") {
-        chain.push({ provider: p, model: m, apiKey: key });
-        added.add(uniqueId);
-      }
+    let { id: providerId, config, model } = this.selectProvider(settings, options.featureKey);
+    
+    // 2. Apply manual override
+    if (options.providerOverride && settings.providers?.[options.providerOverride]) {
+       providerId = options.providerOverride;
+       config = settings.providers[providerId];
+       model = options.modelOverride;
     }
-  };
 
-  const featurePreferredModels = featureKey && (!primaryModel || primaryModel === "auto") ? getFeatureOptimalModels(featureKey) : [];
+    const finalModel = options.modelOverride || model || config.defaultModel || "auto";
 
-  // Sort apiKeys based on strategy
-  const sortApiKeys = (keys: string[], p: string): string[] => {
-    if (keys.length <= 1) return keys;
-    const sorted = [...keys];
-    if (loadBalancingStrategy === "least_latency") {
-      sorted.sort((a, b) => getHealth(p, "auto", a).totalResponseTimeMs / Math.max(1, getHealth(p, "auto", a).successCount) - getHealth(p, "auto", b).totalResponseTimeMs / Math.max(1, getHealth(p, "auto", b).successCount));
-    } else if (loadBalancingStrategy === "least_errors") {
-      sorted.sort((a, b) => getHealth(p, "auto", a).failureCount - getHealth(p, "auto", b).failureCount);
-    } else if (loadBalancingStrategy === "round_robin") {
-      // Shift array by a random or rotating offset. For simplicity, random uniform to emulate round_robin across concurrent requests.
-      const offset = Math.floor(Math.random() * sorted.length);
-      return [...sorted.slice(offset), ...sorted.slice(0, offset)];
-    }
-    return sorted;
-  };
-
-  if (primaryModel && primaryModel !== "auto") {
-    let keys = localApiKeys;
-    if (!keys) {
-      const primaryConfig = settings.providers?.[primaryProvider as keyof typeof settings.providers];
-      keys = primaryConfig?.apiKeys?.length ? primaryConfig.apiKeys : (primaryConfig?.apiKey ? [primaryConfig.apiKey] : []);
-    }
-    keys = sortApiKeys(keys, primaryProvider);
-    keys.forEach(k => {
-      if (k) addCandidate(primaryProvider, primaryModel!, k);
+    // Live request tracking
+    const requestId = Date.now().toString() + Math.random().toString(36).substring(2, 8);
+    globalActiveRequests.set(requestId, {
+      provider: providerId,
+      model: finalModel,
+      feature: options.featureKey,
+      timestamp: new Date().toISOString(),
+      status: "pending",
+      attempt: 0,
     });
-  }
 
-  for (const provider of providerOrder) {
-    const config = settings.providers?.[provider as keyof typeof settings.providers];
-    if (config?.isEnabled === false && provider !== primaryProvider) continue;
-
-    let apiKeys = (provider === primaryProvider && localApiKeys) ? localApiKeys : (config?.apiKeys?.length ? config.apiKeys : (config?.apiKey ? [config.apiKey] : []));
-    if (!apiKeys.length && process.env[`${provider.toUpperCase()}_API_KEY`]) {
-      apiKeys = [process.env[`${provider.toUpperCase()}_API_KEY`]!];
+    // 3. Check Cache
+    const cachedResult = aiCache.get(providerId, finalModel, prompt, options.systemPrompt);
+    if (cachedResult) {
+      aiEventBus.emitCompleted({ provider: providerId, model: finalModel, cached: true });
+      globalActiveRequests.delete(requestId);
+      return cachedResult;
     }
-    if (apiKeys.length === 0) continue;
 
-    apiKeys = sortApiKeys(apiKeys, provider);
-    const availableModels = await fetchAllProviderModels(provider, apiKeys[0]);
+    // 4. Budget / Cost Guard Check (Rough estimation 1000 tokens)
+    const estimatedCost = aiCostGuard.estimateCost(config.providerType, finalModel, 1000);
+    if (!aiCostGuard.canAfford(providerId, estimatedCost)) {
+      throw new Error(`Cost Guard: Provider ${providerId} budget exhausted. Please upgrade budget or use a cheaper model.`);
+    }
 
-    for (const apiKey of apiKeys) {
-      if (!apiKey) continue;
-      
-      let apiKeyCandidates = [...availableModels];
-      apiKeyCandidates.sort((a, b) => {
-        const scoreA = scoreModel(getHealth(provider, a.id, apiKey), !!a.isFree);
-        const scoreB = scoreModel(getHealth(provider, b.id, apiKey), !!b.isFree);
-        let finalScoreA = scoreA;
-        let finalScoreB = scoreB;
+    aiEventBus.emitRequestStarted({ provider: providerId, model: finalModel, feature: options.featureKey });
 
-        if (featurePreferredModels.length > 0) {
-           if (featurePreferredModels.some(pm => a.id.includes(pm))) finalScoreA += 20000;
-           if (featurePreferredModels.some(pm => b.id.includes(pm))) finalScoreB += 20000;
+    // Cap retries at 2 max to prevent the UI from hanging for 7+ minutes
+    let retries = Math.min(config.retryCount || 0, 2);
+    let attempt = 0;
+    let lastError: any;
+
+    while (attempt <= retries) {
+      try {
+        const provider = this.instantiateProvider(providerId, config);
+        const result = await provider.generateText(prompt, {
+          ...options,
+          modelOverride: finalModel,
+        });
+
+        const duration = Date.now() - startTime;
+        
+        // Save to cache
+        aiCache.set(providerId, finalModel, prompt, result, options.systemPrompt);
+
+        // Record cost and telemetry
+        aiCostGuard.recordUsage(providerId, estimatedCost);
+        aiEventBus.emitCompleted({ provider: providerId, model: finalModel, duration, retries: attempt });
+
+        logAITelemetry({
+          provider: providerId,
+          model: finalModel,
+          tokens: 0, 
+          cost: estimatedCost,
+          duration,
+          retries: attempt,
+          feature: options.featureKey,
+          error: undefined,
+          timestamp: new Date().toISOString()
+        });
+        
+        globalActiveRequests.delete(requestId);
+
+        return result;
+      } catch (error: any) {
+        lastError = error;
+        attempt++;
+        
+        aiEventBus.emitRetry({ provider: providerId, attempt, error: error.message });
+        
+        const duration = Date.now() - startTime;
+        logAITelemetry({
+          provider: providerId,
+          model: finalModel,
+          tokens: 0,
+          cost: 0,
+          duration,
+          retries: attempt,
+          feature: options.featureKey,
+          error: error.message || "Unknown error",
+          timestamp: new Date().toISOString()
+        });
+        
+        if (attempt <= retries) {
+          const req = globalActiveRequests.get(requestId);
+          if (req) {
+            req.attempt = attempt;
+            req.status = "retrying";
+            req.error = error.message;
+            globalActiveRequests.set(requestId, req);
+          }
+          await new Promise(res => setTimeout(res, 1000 * Math.pow(2, attempt)));
+        } else {
+          globalActiveRequests.delete(requestId);
         }
-
-        return finalScoreB - finalScoreA;
-      });
-
-      const topCandidates = apiKeyCandidates.slice(0, 3);
-      for (const m of topCandidates) {
-        addCandidate(provider, m.id, apiKey);
       }
     }
-  }
 
-  return chain;
+    aiEventBus.emitFailed({ provider: providerId, error: lastError?.message });
+    globalActiveRequests.delete(requestId);
+    throw new Error(`AI Router: Request failed after ${retries} retries using provider ${providerId}. Last error: ${lastError?.message}`);
+  }
+}
+
+export async function fetchAllProviderModels(provider?: string, apiKey?: string, forceRefresh?: boolean) {
+  return [];
+}
+
+export async function getSmartRoutingChain(featureKey?: string) {
+  return [];
 }

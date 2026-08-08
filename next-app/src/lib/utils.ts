@@ -99,3 +99,16 @@ export function splitScriptIntoParagraphs(text: string): string[] {
   }
   return paragraphs.map(p => p.trim()).filter(p => p.length > 20); // Filter out tiny fragments or empty lines
 }
+
+
+export const calculateDuration = (text: string, currentWpm: number) => {
+  if (!text) return 0;
+  const words = text.trim().split(/\s+/).length;
+  return text.trim() === '' ? 0 : Math.ceil((words / currentWpm) * 60);
+};
+
+export const formatTime = (seconds: number) => {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${s.toString().padStart(2, '0')}`;
+};

@@ -81,20 +81,47 @@ export const AuthLoginBody = z.object({
   password: z.string().min(1),
 });
 
-export const AIProviderConfigSchema = z.object({
+export const CustomProviderConfigSchema = z.object({
+  providerType: z.enum(["openai", "gemini", "openrouter", "openai-compatible", "ollama", "lmstudio", "vllm", "custom"]),
+  displayName: z.string().optional(),
+  description: z.string().optional(),
+  isEnabled: z.boolean().optional(),
+  priority: z.number().optional(),
+  
+  baseUrl: z.string().optional().or(z.literal("")),
   apiKey: z.string().optional(),
   apiKeys: z.array(z.string()).optional(),
-  baseUrl: z.string().url().optional().or(z.literal("")),
-  model: z.string().optional(),
-  isEnabled: z.boolean().optional(),
+  organizationId: z.string().optional(),
+  projectId: z.string().optional(),
+  region: z.string().optional(),
+  authMethod: z.enum(["bearer", "api-key-header", "basic", "custom", "none"]).optional(),
+  headers: z.record(z.string()).optional(),
+
+  healthEndpoint: z.string().optional(),
+  modelsEndpoint: z.string().optional(),
+
+  defaultModel: z.string().optional(),
   temperature: z.number().min(0).max(2).optional(),
   maxTokens: z.number().min(1).optional(),
   timeout: z.number().min(1000).optional(),
   retryCount: z.number().min(0).max(10).optional(),
+  rateLimit: z.number().optional(),
   loadBalancingStrategy: z.enum(["round_robin", "least_latency", "least_errors", "weighted"]).optional(),
+  
+  streamingSupported: z.boolean().optional(),
+  visionSupported: z.boolean().optional(),
+  embeddingSupported: z.boolean().optional(),
+  imageSupported: z.boolean().optional(),
+  audioSupported: z.boolean().optional(),
+  functionCalling: z.boolean().optional(),
+  jsonMode: z.boolean().optional(),
+  reasoningModels: z.boolean().optional(),
+
+  notes: z.string().optional(),
 });
 
 export const FeatureModelOverrideSchema = z.object({
+  profileId: z.string().optional(),
   provider: z.string().optional(),
   model: z.string().optional(),
   apiKeys: z.array(z.string()).optional(),
@@ -110,16 +137,12 @@ export const FeatureModelOverrideSchema = z.object({
 });
 
 export const AISettingsSchema = z.object({
-  activeProvider: z.enum(["openai", "gemini", "openrouter"]).optional(),
-  providers: z.object({
-    openai: AIProviderConfigSchema.optional(),
-    gemini: AIProviderConfigSchema.optional(),
-    openrouter: AIProviderConfigSchema.optional(),
-  }).optional(),
+  activeProvider: z.string().optional(),
+  providers: z.record(z.string(), CustomProviderConfigSchema).optional(),
   features: z.record(z.string(), FeatureModelOverrideSchema).optional(),
 });
 
 export const AITestConnectionSchema = z.object({
-  provider: z.enum(["openai", "gemini", "openrouter"]),
-  config: AIProviderConfigSchema,
+  provider: z.string(),
+  config: CustomProviderConfigSchema,
 });

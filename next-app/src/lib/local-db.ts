@@ -45,8 +45,21 @@ function getLocalDb(): LocalDbSchema {
   return { ...DEFAULT_DB };
 }
 
-function saveLocalDb(data: LocalDbSchema) {
-  fs.writeFileSync(localDbPath, JSON.stringify(data, null, 2), "utf-8");
+function saveLocalDb(data: LocalDbSchema, retries = 5) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      fs.writeFileSync(localDbPath, JSON.stringify(data, null, 2), "utf-8");
+      return;
+    } catch (e) {
+      if (i === retries - 1) {
+        console.error("Failed to save local DB after retries:", e);
+        throw e;
+      }
+      // Wait 50ms before retrying
+      const start = Date.now();
+      while (Date.now() - start < 50) { /* wait */ }
+    }
+  }
 }
 
 export const localDb = {

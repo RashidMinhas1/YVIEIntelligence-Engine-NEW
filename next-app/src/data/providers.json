@@ -1,0 +1,1370 @@
+{
+  "provider_configs": {
+    "openai": {
+      "profile": {
+        "id": "openai",
+        "name": "OpenAI",
+        "category": "official",
+        "description": "Industry-standard LLMs including GPT-4o, o1 reasoning models, and embeddings.",
+        "website": "https://openai.com",
+        "documentation": "https://platform.openai.com/docs",
+        "apiBaseUrl": "https://api.openai.com/v1",
+        "authType": "bearer",
+        "supportedEndpoints": [
+          "/chat/completions",
+          "/embeddings",
+          "/images/generations",
+          "/audio/transcriptions"
+        ],
+        "capabilities": {
+          "chat": true,
+          "vision": true,
+          "toolCalling": true,
+          "functionCalling": true,
+          "jsonMode": true,
+          "streaming": true,
+          "reasoning": true,
+          "embeddings": true,
+          "imageGeneration": true,
+          "audio": true,
+          "maxContextTokens": 128000,
+          "maxOutputTokens": 16384
+        },
+        "models": [
+          {
+            "id": "gpt-4o",
+            "name": "GPT-4o",
+            "capabilities": {
+              "chat": true,
+              "vision": true,
+              "toolCalling": true,
+              "jsonMode": true,
+              "streaming": true,
+              "functionCalling": true,
+              "reasoning": false,
+              "embeddings": false,
+              "imageGeneration": false,
+              "audio": false
+            },
+            "contextWindow": 128000,
+            "isDefault": true
+          },
+          {
+            "id": "gpt-4o-mini",
+            "name": "GPT-4o Mini",
+            "capabilities": {
+              "chat": true,
+              "vision": true,
+              "toolCalling": true,
+              "jsonMode": true,
+              "streaming": true,
+              "functionCalling": true,
+              "reasoning": false,
+              "embeddings": false,
+              "imageGeneration": false,
+              "audio": false
+            },
+            "contextWindow": 128000
+          },
+          {
+            "id": "o1-preview",
+            "name": "o1-Preview",
+            "capabilities": {
+              "chat": true,
+              "vision": true,
+              "toolCalling": false,
+              "jsonMode": false,
+              "streaming": false,
+              "functionCalling": false,
+              "reasoning": true,
+              "embeddings": false,
+              "imageGeneration": false,
+              "audio": false
+            },
+            "contextWindow": 128000
+          }
+        ],
+        "status": "active",
+        "version": "1.0.0",
+        "author": "OpenAI",
+        "createdAt": 1785827784284,
+        "updatedAt": 1785827784284
+      },
+      "apiKeys": [
+        {
+          "id": "key_1785827784293_cbpnv",
+          "name": "QA Key 1",
+          "encryptedKey": {
+            "encrypted": "7c83dc57a71e20db64171990552c83",
+            "iv": "2d23320ab28d63d318a46483",
+            "tag": "0aae579585be38024c9c2b599b7c5af2"
+          },
+          "enabled": true,
+          "priority": 1,
+          "usageCount": 44,
+          "status": "active",
+          "lastUsed": 1786171960159
+        },
+        {
+          "id": "key_1785827813886_pdv8t",
+          "name": "QA Key 1",
+          "encryptedKey": {
+            "encrypted": "5f266fc12ccc76d910fadcec04f489",
+            "iv": "2d91c87684f2e97628d17551",
+            "tag": "adb8007477e28046e5bbd76a42ae30ce"
+          },
+          "enabled": true,
+          "priority": 1,
+          "usageCount": 0,
+          "status": "active"
+        }
+      ],
+      "enabled": true,
+      "selectedDefaultModel": "gpt-4o",
+      "routingPriority": 10,
+      "isSystemDefault": false
+    },
+    "gemini": {
+      "profile": {
+        "id": "gemini",
+        "name": "Google Gemini",
+        "category": "official",
+        "description": "Google DeepMind multimodal AI models with high performance and massive context windows.",
+        "website": "https://ai.google.dev",
+        "documentation": "https://ai.google.dev/docs",
+        "apiBaseUrl": "https://generativelanguage.googleapis.com/v1beta",
+        "authType": "api-key-header",
+        "customHeaderName": "x-goog-api-key",
+        "supportedEndpoints": [
+          "/models/gemini-1.5-pro:generateContent",
+          "/models/gemini-1.5-flash:generateContent"
+        ],
+        "capabilities": {
+          "chat": true,
+          "vision": true,
+          "toolCalling": true,
+          "functionCalling": true,
+          "jsonMode": true,
+          "streaming": true,
+          "reasoning": true,
+          "embeddings": true,
+          "imageGeneration": false,
+          "audio": true,
+          "maxContextTokens": 2000000,
+          "maxOutputTokens": 8192
+        },
+        "models": [
+          {
+            "id": "gemini-1.5-pro",
+            "name": "Gemini 1.5 Pro",
+            "capabilities": {
+              "chat": true,
+              "vision": true,
+              "toolCalling": true,
+              "jsonMode": true,
+              "streaming": true,
+              "functionCalling": true,
+              "reasoning": true,
+              "embeddings": false,
+              "imageGeneration": false,
+              "audio": true
+            },
+            "contextWindow": 2000000,
+            "isDefault": true
+          },
+          {
+            "id": "gemini-1.5-flash",
+            "name": "Gemini 1.5 Flash",
+            "capabilities": {
+              "chat": true,
+              "vision": true,
+              "toolCalling": true,
+              "jsonMode": true,
+              "streaming": true,
+              "functionCalling": true,
+              "reasoning": false,
+              "embeddings": false,
+              "imageGeneration": false,
+              "audio": true
+            },
+            "contextWindow": 1000000
+          },
+          {
+            "id": "gemini-2.5-flash",
+            "name": "Gemini 2.5 Flash",
+            "capabilities": {
+              "chat": true,
+              "vision": true,
+              "toolCalling": true,
+              "jsonMode": true,
+              "streaming": true,
+              "functionCalling": true,
+              "reasoning": true,
+              "embeddings": false,
+              "imageGeneration": false,
+              "audio": true
+            },
+            "contextWindow": 1000000
+          }
+        ],
+        "status": "active",
+        "version": "1.0.0",
+        "author": "Google DeepMind",
+        "createdAt": 1785827784284,
+        "updatedAt": 1785827784284
+      },
+      "apiKeys": [],
+      "enabled": true,
+      "selectedDefaultModel": "gemini-1.5-pro",
+      "routingPriority": 10,
+      "isSystemDefault": false
+    },
+    "openrouter": {
+      "profile": {
+        "id": "openrouter",
+        "name": "OpenRouter",
+        "category": "official",
+        "description": "Unified router API access to 100+ AI models including Claude 3.5, Llama 3, and Mistral.",
+        "website": "https://openrouter.ai",
+        "documentation": "https://openrouter.ai/docs",
+        "apiBaseUrl": "https://openrouter.ai/api/v1",
+        "authType": "bearer",
+        "supportedEndpoints": [
+          "/chat/completions",
+          "/models"
+        ],
+        "capabilities": {
+          "chat": true,
+          "vision": true,
+          "toolCalling": true,
+          "functionCalling": true,
+          "jsonMode": true,
+          "streaming": true,
+          "reasoning": true,
+          "embeddings": true,
+          "imageGeneration": true,
+          "audio": true,
+          "maxContextTokens": 200000,
+          "maxOutputTokens": 8192
+        },
+        "models": [
+          {
+            "id": "anthropic/claude-3.5-sonnet",
+            "name": "Claude 3.5 Sonnet",
+            "capabilities": {
+              "chat": true,
+              "vision": true,
+              "toolCalling": true,
+              "jsonMode": true,
+              "streaming": true,
+              "functionCalling": true,
+              "reasoning": true,
+              "embeddings": false,
+              "imageGeneration": false,
+              "audio": false
+            },
+            "contextWindow": 200000,
+            "isDefault": true
+          },
+          {
+            "id": "anthropic/claude-3-haiku",
+            "name": "Claude 3 Haiku",
+            "capabilities": {
+              "chat": true,
+              "vision": true,
+              "toolCalling": true,
+              "jsonMode": true,
+              "streaming": true,
+              "functionCalling": true,
+              "reasoning": false,
+              "embeddings": false,
+              "imageGeneration": false,
+              "audio": false
+            },
+            "contextWindow": 200000
+          },
+          {
+            "id": "meta-llama/llama-3.1-405b-instruct",
+            "name": "Llama 3.1 405B",
+            "capabilities": {
+              "chat": true,
+              "vision": false,
+              "toolCalling": true,
+              "jsonMode": true,
+              "streaming": true,
+              "functionCalling": true,
+              "reasoning": true,
+              "embeddings": false,
+              "imageGeneration": false,
+              "audio": false
+            },
+            "contextWindow": 128000
+          }
+        ],
+        "status": "active",
+        "version": "1.0.0",
+        "author": "OpenRouter",
+        "createdAt": 1785827784284,
+        "updatedAt": 1785827784284
+      },
+      "apiKeys": [],
+      "enabled": true,
+      "selectedDefaultModel": "anthropic/claude-3.5-sonnet",
+      "routingPriority": 10,
+      "isSystemDefault": false
+    },
+    "ollama": {
+      "profile": {
+        "id": "ollama",
+        "name": "Ollama",
+        "category": "local",
+        "description": "Run open-source LLMs locally on CPU/GPU (Llama 3, Mistral, Gemma, DeepSeek).",
+        "website": "https://ollama.com",
+        "documentation": "https://github.com/ollama/ollama/tree/main/docs",
+        "apiBaseUrl": "http://localhost:11434/v1",
+        "authType": "none",
+        "supportedEndpoints": [
+          "/chat/completions",
+          "/api/generate",
+          "/api/tags"
+        ],
+        "capabilities": {
+          "chat": true,
+          "vision": true,
+          "toolCalling": true,
+          "functionCalling": true,
+          "jsonMode": true,
+          "streaming": true,
+          "reasoning": true,
+          "embeddings": true,
+          "imageGeneration": false,
+          "audio": false,
+          "maxContextTokens": 32768,
+          "maxOutputTokens": 4096
+        },
+        "models": [
+          {
+            "id": "llama3:latest",
+            "name": "Llama 3 Local",
+            "capabilities": {
+              "chat": true,
+              "vision": false,
+              "toolCalling": true,
+              "jsonMode": true,
+              "streaming": true,
+              "functionCalling": true,
+              "reasoning": false,
+              "embeddings": true,
+              "imageGeneration": false,
+              "audio": false
+            },
+            "contextWindow": 8192,
+            "isDefault": true
+          },
+          {
+            "id": "mistral:latest",
+            "name": "Mistral 7B Local",
+            "capabilities": {
+              "chat": true,
+              "vision": false,
+              "toolCalling": true,
+              "jsonMode": true,
+              "streaming": true,
+              "functionCalling": true,
+              "reasoning": false,
+              "embeddings": true,
+              "imageGeneration": false,
+              "audio": false
+            },
+            "contextWindow": 8192
+          }
+        ],
+        "status": "active",
+        "version": "1.0.0",
+        "author": "Ollama Community",
+        "createdAt": 1785827784284,
+        "updatedAt": 1785827784284
+      },
+      "apiKeys": [],
+      "enabled": true,
+      "selectedDefaultModel": "llama3:latest",
+      "routingPriority": 30,
+      "isSystemDefault": false
+    },
+    "groq": {
+      "profile": {
+        "id": "groq",
+        "name": "Groq",
+        "category": "community",
+        "description": "Ultra-fast LPU inference engine for open-source AI models.",
+        "website": "https://groq.com",
+        "documentation": "https://console.groq.com/docs/quickstart",
+        "apiBaseUrl": "https://api.groq.com/openai/v1",
+        "authType": "bearer",
+        "supportedEndpoints": [
+          "/chat/completions",
+          "/models"
+        ],
+        "capabilities": {
+          "chat": true,
+          "vision": false,
+          "toolCalling": true,
+          "functionCalling": true,
+          "jsonMode": true,
+          "streaming": true,
+          "reasoning": false,
+          "embeddings": false,
+          "imageGeneration": false,
+          "audio": true,
+          "maxContextTokens": 128000,
+          "maxOutputTokens": 8192
+        },
+        "models": [
+          {
+            "id": "llama-3.3-70b-versatile",
+            "name": "Llama 3.3 70B",
+            "capabilities": {
+              "chat": true,
+              "vision": false,
+              "toolCalling": true,
+              "jsonMode": true,
+              "streaming": true,
+              "functionCalling": true,
+              "reasoning": true,
+              "embeddings": false,
+              "imageGeneration": false,
+              "audio": false
+            },
+            "contextWindow": 128000,
+            "isDefault": true
+          }
+        ],
+        "status": "active",
+        "version": "1.0.0",
+        "author": "Groq",
+        "createdAt": 1785827784284,
+        "updatedAt": 1785827784284
+      },
+      "apiKeys": [],
+      "enabled": true,
+      "selectedDefaultModel": "llama-3.3-70b-versatile",
+      "routingPriority": 20,
+      "isSystemDefault": false
+    },
+    "qa-custom-provider": {
+      "profile": {
+        "id": "qa-custom-provider",
+        "name": "QA Custom Provider",
+        "category": "community",
+        "description": "Imported community AI provider",
+        "website": "",
+        "documentation": "",
+        "apiBaseUrl": "https://api.qa-custom.ai/v1",
+        "authType": "bearer",
+        "supportedEndpoints": [
+          "/chat/completions"
+        ],
+        "capabilities": {
+          "chat": true,
+          "vision": false,
+          "toolCalling": true,
+          "functionCalling": true,
+          "jsonMode": true,
+          "streaming": true,
+          "reasoning": false,
+          "embeddings": false,
+          "imageGeneration": false,
+          "audio": false,
+          "maxContextTokens": 128000,
+          "maxOutputTokens": 4096
+        },
+        "models": [
+          {
+            "id": "qa-model-v1",
+            "name": "qa-model-v1",
+            "capabilities": {
+              "chat": true,
+              "vision": false,
+              "toolCalling": true,
+              "jsonMode": true,
+              "streaming": true,
+              "functionCalling": true,
+              "reasoning": false,
+              "embeddings": false,
+              "imageGeneration": false,
+              "audio": false
+            },
+            "isDefault": true
+          }
+        ],
+        "status": "active",
+        "version": "1.0.0",
+        "author": "Community Import",
+        "isCustom": false,
+        "createdAt": 1785827813900,
+        "updatedAt": 1785827813900
+      },
+      "apiKeys": [],
+      "enabled": true,
+      "selectedDefaultModel": "qa-model-v1",
+      "routingPriority": 20,
+      "isSystemDefault": false
+    },
+    "website_api_msek5a30": {
+      "profile": {
+        "id": "website_api_msek5a30",
+        "name": "Website AI API",
+        "category": "website",
+        "description": "Connect to private APIs exposed by websites using cookies, session tokens, or custom headers",
+        "website": "https://www.example.com",
+        "documentation": "",
+        "apiBaseUrl": "https://www.example.com/api",
+        "authType": "cookie",
+        "supportedEndpoints": [
+          "/chat/completions"
+        ],
+        "capabilities": {
+          "chat": true,
+          "vision": false,
+          "toolCalling": false,
+          "functionCalling": false,
+          "jsonMode": false,
+          "streaming": true,
+          "reasoning": false,
+          "embeddings": false,
+          "imageGeneration": false,
+          "audio": false,
+          "maxContextTokens": 128000,
+          "maxOutputTokens": 4096
+        },
+        "models": [
+          {
+            "id": "web-model",
+            "name": "web-model",
+            "capabilities": {
+              "chat": true,
+              "vision": false,
+              "toolCalling": false,
+              "jsonMode": false,
+              "streaming": true,
+              "functionCalling": false,
+              "reasoning": false,
+              "embeddings": false,
+              "imageGeneration": false,
+              "audio": false
+            },
+            "isDefault": true
+          }
+        ],
+        "status": "active",
+        "version": "1.0.0",
+        "author": "Template Wizard",
+        "isCustom": true,
+        "createdAt": 1785841880652,
+        "updatedAt": 1785841880652
+      },
+      "apiKeys": [],
+      "enabled": true,
+      "selectedDefaultModel": "web-model",
+      "routingPriority": 30,
+      "isSystemDefault": false
+    },
+    "website_api_msek5i97": {
+      "profile": {
+        "id": "website_api_msek5i97",
+        "name": "Website AI API",
+        "category": "website",
+        "description": "Connect to private APIs exposed by websites using cookies, session tokens, or custom headers",
+        "website": "https://www.example.com",
+        "documentation": "",
+        "apiBaseUrl": "https://www.example.com/api",
+        "authType": "cookie",
+        "supportedEndpoints": [
+          "/chat/completions"
+        ],
+        "capabilities": {
+          "chat": true,
+          "vision": false,
+          "toolCalling": false,
+          "functionCalling": false,
+          "jsonMode": false,
+          "streaming": true,
+          "reasoning": false,
+          "embeddings": false,
+          "imageGeneration": false,
+          "audio": false,
+          "maxContextTokens": 128000,
+          "maxOutputTokens": 4096
+        },
+        "models": [
+          {
+            "id": "web-model",
+            "name": "web-model",
+            "capabilities": {
+              "chat": true,
+              "vision": false,
+              "toolCalling": false,
+              "jsonMode": false,
+              "streaming": true,
+              "functionCalling": false,
+              "reasoning": false,
+              "embeddings": false,
+              "imageGeneration": false,
+              "audio": false
+            },
+            "isDefault": true
+          }
+        ],
+        "status": "active",
+        "version": "1.0.0",
+        "author": "Template Wizard",
+        "isCustom": true,
+        "createdAt": 1785841891243,
+        "updatedAt": 1785841891243
+      },
+      "apiKeys": [],
+      "enabled": true,
+      "selectedDefaultModel": "web-model",
+      "routingPriority": 30,
+      "isSystemDefault": false
+    },
+    "generic_rest_api_msek5je2": {
+      "profile": {
+        "id": "generic_rest_api_msek5je2",
+        "name": "Generic REST Provider",
+        "category": "generic",
+        "description": "Connect custom REST APIs that are not OpenAI compatible",
+        "website": "",
+        "documentation": "",
+        "apiBaseUrl": "https://api.custom.com/rest",
+        "authType": "custom-header",
+        "customHeaderName": "Authorization",
+        "supportedEndpoints": [
+          "/chat/completions"
+        ],
+        "capabilities": {
+          "chat": true,
+          "vision": false,
+          "toolCalling": false,
+          "functionCalling": false,
+          "jsonMode": false,
+          "streaming": true,
+          "reasoning": false,
+          "embeddings": false,
+          "imageGeneration": false,
+          "audio": false,
+          "maxContextTokens": 128000,
+          "maxOutputTokens": 4096
+        },
+        "models": [
+          {
+            "id": "default-model",
+            "name": "default-model",
+            "capabilities": {
+              "chat": true,
+              "vision": false,
+              "toolCalling": false,
+              "jsonMode": false,
+              "streaming": true,
+              "functionCalling": false,
+              "reasoning": false,
+              "embeddings": false,
+              "imageGeneration": false,
+              "audio": false
+            },
+            "isDefault": true
+          }
+        ],
+        "status": "active",
+        "version": "1.0.0",
+        "author": "Template Wizard",
+        "isCustom": true,
+        "createdAt": 1785841892714,
+        "updatedAt": 1785841892714
+      },
+      "apiKeys": [],
+      "enabled": true,
+      "selectedDefaultModel": "default-model",
+      "routingPriority": 30,
+      "isSystemDefault": false
+    },
+    "gemini_msek7i4t": {
+      "profile": {
+        "id": "gemini_msek7i4t",
+        "name": "Google Gemini",
+        "category": "official",
+        "description": "Gemini 1.5 Pro, 1.5 Flash, 2.5 Flash",
+        "website": "https://ai.google.dev",
+        "documentation": "https://ai.google.dev/docs",
+        "apiBaseUrl": "https://generativelanguage.googleapis.com/v1beta",
+        "authType": "api-key-header",
+        "customHeaderName": "x-goog-api-key",
+        "supportedEndpoints": [
+          "/chat/completions"
+        ],
+        "capabilities": {
+          "chat": true,
+          "vision": true,
+          "toolCalling": true,
+          "functionCalling": true,
+          "jsonMode": true,
+          "streaming": true,
+          "reasoning": false,
+          "embeddings": false,
+          "imageGeneration": false,
+          "audio": false,
+          "maxContextTokens": 2000000,
+          "maxOutputTokens": 4096
+        },
+        "models": [
+          {
+            "id": "gemini-1.5-pro",
+            "name": "gemini-1.5-pro",
+            "capabilities": {
+              "chat": true,
+              "vision": true,
+              "toolCalling": true,
+              "jsonMode": true,
+              "streaming": true,
+              "functionCalling": true,
+              "reasoning": false,
+              "embeddings": false,
+              "imageGeneration": false,
+              "audio": false
+            },
+            "isDefault": true
+          },
+          {
+            "id": "gemini-1.5-flash",
+            "name": "gemini-1.5-flash",
+            "capabilities": {
+              "chat": true,
+              "vision": true,
+              "toolCalling": true,
+              "jsonMode": true,
+              "streaming": true,
+              "functionCalling": true,
+              "reasoning": false,
+              "embeddings": false,
+              "imageGeneration": false,
+              "audio": false
+            },
+            "isDefault": false
+          },
+          {
+            "id": "gemini-2.5-flash",
+            "name": "gemini-2.5-flash",
+            "capabilities": {
+              "chat": true,
+              "vision": true,
+              "toolCalling": true,
+              "jsonMode": true,
+              "streaming": true,
+              "functionCalling": true,
+              "reasoning": false,
+              "embeddings": false,
+              "imageGeneration": false,
+              "audio": false
+            },
+            "isDefault": false
+          }
+        ],
+        "status": "active",
+        "version": "1.0.0",
+        "author": "Template Wizard",
+        "isCustom": false,
+        "createdAt": 1785841984397,
+        "updatedAt": 1785841984397
+      },
+      "apiKeys": [],
+      "enabled": true,
+      "selectedDefaultModel": "gemini-1.5-pro",
+      "routingPriority": 10,
+      "isSystemDefault": false
+    }
+  },
+  "request_history_config": {
+    "mode": "last_100",
+    "retentionDays": 30
+  },
+  "request_history_logs": [
+    {
+      "requestId": "req_1785827784318_uok3f",
+      "providerId": "openai",
+      "model": "gpt-4o",
+      "latencyMs": 10,
+      "tokensUsed": {
+        "prompt": 10,
+        "completion": 120,
+        "total": 130
+      },
+      "success": true,
+      "timestamp": 1785827784328,
+      "failoverUsed": false,
+      "id": "req_1785827784318_uok3f"
+    }
+  ],
+  "latest_ecosystem_backup": {
+    "version": "2.0.0",
+    "timestamp": 1785829435315,
+    "providerConfigs": [
+      {
+        "profile": {
+          "id": "openai",
+          "name": "OpenAI",
+          "category": "official",
+          "description": "Industry-standard LLMs including GPT-4o, o1 reasoning models, and embeddings.",
+          "website": "https://openai.com",
+          "documentation": "https://platform.openai.com/docs",
+          "apiBaseUrl": "https://api.openai.com/v1",
+          "authType": "bearer",
+          "supportedEndpoints": [
+            "/chat/completions",
+            "/embeddings",
+            "/images/generations",
+            "/audio/transcriptions"
+          ],
+          "capabilities": {
+            "chat": true,
+            "vision": true,
+            "toolCalling": true,
+            "functionCalling": true,
+            "jsonMode": true,
+            "streaming": true,
+            "reasoning": true,
+            "embeddings": true,
+            "imageGeneration": true,
+            "audio": true,
+            "maxContextTokens": 128000,
+            "maxOutputTokens": 16384
+          },
+          "models": [
+            {
+              "id": "gpt-4o",
+              "name": "GPT-4o",
+              "capabilities": {
+                "chat": true,
+                "vision": true,
+                "toolCalling": true,
+                "jsonMode": true,
+                "streaming": true,
+                "functionCalling": true,
+                "reasoning": false,
+                "embeddings": false,
+                "imageGeneration": false,
+                "audio": false
+              },
+              "contextWindow": 128000,
+              "isDefault": true
+            },
+            {
+              "id": "gpt-4o-mini",
+              "name": "GPT-4o Mini",
+              "capabilities": {
+                "chat": true,
+                "vision": true,
+                "toolCalling": true,
+                "jsonMode": true,
+                "streaming": true,
+                "functionCalling": true,
+                "reasoning": false,
+                "embeddings": false,
+                "imageGeneration": false,
+                "audio": false
+              },
+              "contextWindow": 128000
+            },
+            {
+              "id": "o1-preview",
+              "name": "o1-Preview",
+              "capabilities": {
+                "chat": true,
+                "vision": true,
+                "toolCalling": false,
+                "jsonMode": false,
+                "streaming": false,
+                "functionCalling": false,
+                "reasoning": true,
+                "embeddings": false,
+                "imageGeneration": false,
+                "audio": false
+              },
+              "contextWindow": 128000
+            }
+          ],
+          "status": "active",
+          "version": "1.0.0",
+          "author": "OpenAI",
+          "createdAt": 1785827784284,
+          "updatedAt": 1785827784284
+        },
+        "apiKeys": [
+          {
+            "id": "key_1785827784293_cbpnv",
+            "name": "QA Key 1",
+            "encryptedKey": {
+              "encrypted": "7c83dc57a71e20db64171990552c83",
+              "iv": "2d23320ab28d63d318a46483",
+              "tag": "0aae579585be38024c9c2b599b7c5af2"
+            },
+            "enabled": true,
+            "priority": 1,
+            "usageCount": 9,
+            "status": "active",
+            "lastUsed": 1785829433206
+          },
+          {
+            "id": "key_1785827813886_pdv8t",
+            "name": "QA Key 1",
+            "encryptedKey": {
+              "encrypted": "5f266fc12ccc76d910fadcec04f489",
+              "iv": "2d91c87684f2e97628d17551",
+              "tag": "adb8007477e28046e5bbd76a42ae30ce"
+            },
+            "enabled": true,
+            "priority": 1,
+            "usageCount": 0,
+            "status": "active"
+          },
+          {
+            "id": "key_1785828323652_8mi4u",
+            "name": "QA Key 1",
+            "encryptedKey": {
+              "encrypted": "8acfad8cb5d0dccc6c7804ebb490e9",
+              "iv": "5b5c802b189d4c6ee48de6c6",
+              "tag": "e3a1555c9c8f3edb788c37c4eaf23962"
+            },
+            "enabled": true,
+            "priority": 1,
+            "usageCount": 0,
+            "status": "active"
+          },
+          {
+            "id": "key_1785829433176_n0te6",
+            "name": "QA Key 1",
+            "encryptedKey": {
+              "encrypted": "5cab5d329dceaa077eeec8d646bd8d",
+              "iv": "ae68f697aeb5f6d1c87af2ca",
+              "tag": "b660a1f96e9d8e4b4932ba859b82bc1b"
+            },
+            "enabled": true,
+            "priority": 1,
+            "usageCount": 0,
+            "status": "active"
+          }
+        ],
+        "enabled": true,
+        "selectedDefaultModel": "gpt-4o",
+        "routingPriority": 10,
+        "isSystemDefault": false
+      },
+      {
+        "profile": {
+          "id": "gemini",
+          "name": "Google Gemini",
+          "category": "official",
+          "description": "Google DeepMind multimodal AI models with high performance and massive context windows.",
+          "website": "https://ai.google.dev",
+          "documentation": "https://ai.google.dev/docs",
+          "apiBaseUrl": "https://generativelanguage.googleapis.com/v1beta",
+          "authType": "api-key-header",
+          "customHeaderName": "x-goog-api-key",
+          "supportedEndpoints": [
+            "/models/gemini-1.5-pro:generateContent",
+            "/models/gemini-1.5-flash:generateContent"
+          ],
+          "capabilities": {
+            "chat": true,
+            "vision": true,
+            "toolCalling": true,
+            "functionCalling": true,
+            "jsonMode": true,
+            "streaming": true,
+            "reasoning": true,
+            "embeddings": true,
+            "imageGeneration": false,
+            "audio": true,
+            "maxContextTokens": 2000000,
+            "maxOutputTokens": 8192
+          },
+          "models": [
+            {
+              "id": "gemini-1.5-pro",
+              "name": "Gemini 1.5 Pro",
+              "capabilities": {
+                "chat": true,
+                "vision": true,
+                "toolCalling": true,
+                "jsonMode": true,
+                "streaming": true,
+                "functionCalling": true,
+                "reasoning": true,
+                "embeddings": false,
+                "imageGeneration": false,
+                "audio": true
+              },
+              "contextWindow": 2000000,
+              "isDefault": true
+            },
+            {
+              "id": "gemini-1.5-flash",
+              "name": "Gemini 1.5 Flash",
+              "capabilities": {
+                "chat": true,
+                "vision": true,
+                "toolCalling": true,
+                "jsonMode": true,
+                "streaming": true,
+                "functionCalling": true,
+                "reasoning": false,
+                "embeddings": false,
+                "imageGeneration": false,
+                "audio": true
+              },
+              "contextWindow": 1000000
+            },
+            {
+              "id": "gemini-2.5-flash",
+              "name": "Gemini 2.5 Flash",
+              "capabilities": {
+                "chat": true,
+                "vision": true,
+                "toolCalling": true,
+                "jsonMode": true,
+                "streaming": true,
+                "functionCalling": true,
+                "reasoning": true,
+                "embeddings": false,
+                "imageGeneration": false,
+                "audio": true
+              },
+              "contextWindow": 1000000
+            }
+          ],
+          "status": "active",
+          "version": "1.0.0",
+          "author": "Google DeepMind",
+          "createdAt": 1785827784284,
+          "updatedAt": 1785827784284
+        },
+        "apiKeys": [],
+        "enabled": true,
+        "selectedDefaultModel": "gemini-1.5-pro",
+        "routingPriority": 10,
+        "isSystemDefault": false
+      },
+      {
+        "profile": {
+          "id": "openrouter",
+          "name": "OpenRouter",
+          "category": "official",
+          "description": "Unified router API access to 100+ AI models including Claude 3.5, Llama 3, and Mistral.",
+          "website": "https://openrouter.ai",
+          "documentation": "https://openrouter.ai/docs",
+          "apiBaseUrl": "https://openrouter.ai/api/v1",
+          "authType": "bearer",
+          "supportedEndpoints": [
+            "/chat/completions",
+            "/models"
+          ],
+          "capabilities": {
+            "chat": true,
+            "vision": true,
+            "toolCalling": true,
+            "functionCalling": true,
+            "jsonMode": true,
+            "streaming": true,
+            "reasoning": true,
+            "embeddings": true,
+            "imageGeneration": true,
+            "audio": true,
+            "maxContextTokens": 200000,
+            "maxOutputTokens": 8192
+          },
+          "models": [
+            {
+              "id": "anthropic/claude-3.5-sonnet",
+              "name": "Claude 3.5 Sonnet",
+              "capabilities": {
+                "chat": true,
+                "vision": true,
+                "toolCalling": true,
+                "jsonMode": true,
+                "streaming": true,
+                "functionCalling": true,
+                "reasoning": true,
+                "embeddings": false,
+                "imageGeneration": false,
+                "audio": false
+              },
+              "contextWindow": 200000,
+              "isDefault": true
+            },
+            {
+              "id": "anthropic/claude-3-haiku",
+              "name": "Claude 3 Haiku",
+              "capabilities": {
+                "chat": true,
+                "vision": true,
+                "toolCalling": true,
+                "jsonMode": true,
+                "streaming": true,
+                "functionCalling": true,
+                "reasoning": false,
+                "embeddings": false,
+                "imageGeneration": false,
+                "audio": false
+              },
+              "contextWindow": 200000
+            },
+            {
+              "id": "meta-llama/llama-3.1-405b-instruct",
+              "name": "Llama 3.1 405B",
+              "capabilities": {
+                "chat": true,
+                "vision": false,
+                "toolCalling": true,
+                "jsonMode": true,
+                "streaming": true,
+                "functionCalling": true,
+                "reasoning": true,
+                "embeddings": false,
+                "imageGeneration": false,
+                "audio": false
+              },
+              "contextWindow": 128000
+            }
+          ],
+          "status": "active",
+          "version": "1.0.0",
+          "author": "OpenRouter",
+          "createdAt": 1785827784284,
+          "updatedAt": 1785827784284
+        },
+        "apiKeys": [],
+        "enabled": true,
+        "selectedDefaultModel": "anthropic/claude-3.5-sonnet",
+        "routingPriority": 10,
+        "isSystemDefault": false
+      },
+      {
+        "profile": {
+          "id": "ollama",
+          "name": "Ollama",
+          "category": "local",
+          "description": "Run open-source LLMs locally on CPU/GPU (Llama 3, Mistral, Gemma, DeepSeek).",
+          "website": "https://ollama.com",
+          "documentation": "https://github.com/ollama/ollama/tree/main/docs",
+          "apiBaseUrl": "http://localhost:11434/v1",
+          "authType": "none",
+          "supportedEndpoints": [
+            "/chat/completions",
+            "/api/generate",
+            "/api/tags"
+          ],
+          "capabilities": {
+            "chat": true,
+            "vision": true,
+            "toolCalling": true,
+            "functionCalling": true,
+            "jsonMode": true,
+            "streaming": true,
+            "reasoning": true,
+            "embeddings": true,
+            "imageGeneration": false,
+            "audio": false,
+            "maxContextTokens": 32768,
+            "maxOutputTokens": 4096
+          },
+          "models": [
+            {
+              "id": "llama3:latest",
+              "name": "Llama 3 Local",
+              "capabilities": {
+                "chat": true,
+                "vision": false,
+                "toolCalling": true,
+                "jsonMode": true,
+                "streaming": true,
+                "functionCalling": true,
+                "reasoning": false,
+                "embeddings": true,
+                "imageGeneration": false,
+                "audio": false
+              },
+              "contextWindow": 8192,
+              "isDefault": true
+            },
+            {
+              "id": "mistral:latest",
+              "name": "Mistral 7B Local",
+              "capabilities": {
+                "chat": true,
+                "vision": false,
+                "toolCalling": true,
+                "jsonMode": true,
+                "streaming": true,
+                "functionCalling": true,
+                "reasoning": false,
+                "embeddings": true,
+                "imageGeneration": false,
+                "audio": false
+              },
+              "contextWindow": 8192
+            }
+          ],
+          "status": "active",
+          "version": "1.0.0",
+          "author": "Ollama Community",
+          "createdAt": 1785827784284,
+          "updatedAt": 1785827784284
+        },
+        "apiKeys": [],
+        "enabled": true,
+        "selectedDefaultModel": "llama3:latest",
+        "routingPriority": 30,
+        "isSystemDefault": false
+      },
+      {
+        "profile": {
+          "id": "groq",
+          "name": "Groq",
+          "category": "community",
+          "description": "Ultra-fast LPU inference engine for open-source AI models.",
+          "website": "https://groq.com",
+          "documentation": "https://console.groq.com/docs/quickstart",
+          "apiBaseUrl": "https://api.groq.com/openai/v1",
+          "authType": "bearer",
+          "supportedEndpoints": [
+            "/chat/completions",
+            "/models"
+          ],
+          "capabilities": {
+            "chat": true,
+            "vision": false,
+            "toolCalling": true,
+            "functionCalling": true,
+            "jsonMode": true,
+            "streaming": true,
+            "reasoning": false,
+            "embeddings": false,
+            "imageGeneration": false,
+            "audio": true,
+            "maxContextTokens": 128000,
+            "maxOutputTokens": 8192
+          },
+          "models": [
+            {
+              "id": "llama-3.3-70b-versatile",
+              "name": "Llama 3.3 70B",
+              "capabilities": {
+                "chat": true,
+                "vision": false,
+                "toolCalling": true,
+                "jsonMode": true,
+                "streaming": true,
+                "functionCalling": true,
+                "reasoning": true,
+                "embeddings": false,
+                "imageGeneration": false,
+                "audio": false
+              },
+              "contextWindow": 128000,
+              "isDefault": true
+            }
+          ],
+          "status": "active",
+          "version": "1.0.0",
+          "author": "Groq",
+          "createdAt": 1785827784284,
+          "updatedAt": 1785827784284
+        },
+        "apiKeys": [],
+        "enabled": true,
+        "selectedDefaultModel": "llama-3.3-70b-versatile",
+        "routingPriority": 20,
+        "isSystemDefault": false
+      },
+      {
+        "profile": {
+          "id": "qa-custom-provider",
+          "name": "QA Custom Provider",
+          "category": "community",
+          "description": "Imported community AI provider",
+          "website": "",
+          "documentation": "",
+          "apiBaseUrl": "https://api.qa-custom.ai/v1",
+          "authType": "bearer",
+          "supportedEndpoints": [
+            "/chat/completions"
+          ],
+          "capabilities": {
+            "chat": true,
+            "vision": false,
+            "toolCalling": true,
+            "functionCalling": true,
+            "jsonMode": true,
+            "streaming": true,
+            "reasoning": false,
+            "embeddings": false,
+            "imageGeneration": false,
+            "audio": false,
+            "maxContextTokens": 128000,
+            "maxOutputTokens": 4096
+          },
+          "models": [
+            {
+              "id": "qa-model-v1",
+              "name": "qa-model-v1",
+              "capabilities": {
+                "chat": true,
+                "vision": false,
+                "toolCalling": true,
+                "jsonMode": true,
+                "streaming": true,
+                "functionCalling": true,
+                "reasoning": false,
+                "embeddings": false,
+                "imageGeneration": false,
+                "audio": false
+              },
+              "isDefault": true
+            }
+          ],
+          "status": "active",
+          "version": "1.0.0",
+          "author": "Community Import",
+          "isCustom": false,
+          "createdAt": 1785829433192,
+          "updatedAt": 1785829433192
+        },
+        "apiKeys": [],
+        "enabled": true,
+        "selectedDefaultModel": "qa-model-v1",
+        "routingPriority": 20,
+        "isSystemDefault": false
+      }
+    ],
+    "historyConfig": {
+      "mode": "last_100",
+      "retentionDays": 30
+    },
+    "historyLogs": [
+      {
+        "requestId": "req_1785827784318_uok3f",
+        "providerId": "openai",
+        "model": "gpt-4o",
+        "latencyMs": 10,
+        "tokensUsed": {
+          "prompt": 10,
+          "completion": 120,
+          "total": 130
+        },
+        "success": true,
+        "timestamp": 1785827784328,
+        "failoverUsed": false,
+        "id": "req_1785827784318_uok3f"
+      }
+    ]
+  }
+}

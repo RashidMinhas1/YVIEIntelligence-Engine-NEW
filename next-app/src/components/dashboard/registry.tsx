@@ -1,14 +1,11 @@
 import { ComponentType } from "react";
-import { LucideIcon, LayoutDashboard, Search, Users, Activity, FileText, Languages } from "lucide-react";
+import { LucideIcon, LayoutDashboard, Search, Languages } from "lucide-react";
 import dynamic from "next/dynamic";
 import DashboardOverview from "@/components/dashboard-page-content"; 
 
 export type DashboardModuleId = 
   | "overview" 
   | "discovery" 
-  | "similar" 
-  | "outliers" 
-  | "reports"
   | "translation";
 
 export interface DashboardModuleManifest {
@@ -43,36 +40,6 @@ export const MODULE_MANIFEST: DashboardModuleManifest[] = [
     permissions: [],
     featureFlags: [],
     lazyLoader: () => import("./modules/channel-discovery"),
-  },
-  {
-    id: "similar",
-    title: "Similar Channels",
-    icon: Users,
-    order: 2,
-    category: "RESEARCH",
-    permissions: [],
-    featureFlags: [],
-    lazyLoader: () => import("./modules/similar-channels"),
-  },
-  {
-    id: "outliers",
-    title: "Outlier Detection",
-    icon: Activity,
-    order: 3,
-    category: "INTELLIGENCE",
-    permissions: [],
-    featureFlags: [],
-    lazyLoader: () => import("./modules/outlier-detection"),
-  },
-  {
-    id: "reports",
-    title: "Intelligence Reports",
-    icon: FileText,
-    order: 4,
-    category: "INTELLIGENCE",
-    permissions: [],
-    featureFlags: [],
-    lazyLoader: () => import("./modules/reports"),
   },
   {
     id: "translation",

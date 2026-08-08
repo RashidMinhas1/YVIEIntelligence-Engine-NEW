@@ -10,6 +10,7 @@ export interface AIRequestOptions {
   abortSignal?: AbortSignal;
   latencySensitive?: boolean;
   maxTokens?: number;
+  temperature?: number;
 }
 
 export interface AIProvider {

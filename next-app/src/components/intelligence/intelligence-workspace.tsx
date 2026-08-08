@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Terminal, Send, RefreshCcw, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ModuleAISettings } from "@/components/shared/module-ai-settings";
+import { ActiveProviderBadge } from "../ActiveProviderBadge";
 import { toast } from "sonner";
 
 export function IntelligenceWorkspace() {
@@ -60,7 +60,10 @@ export function IntelligenceWorkspace() {
           <h3 className="font-bold text-sm">AI Intelligence Workspace</h3>
         </div>
         <div className="flex items-center gap-2">
-          <ModuleAISettings featureKey="workspace" moduleName="Intelligence Workspace" />
+          <span className="text-xs text-muted-foreground font-mono ml-1 mr-4">Intelligence Workspace</span>
+          <div className="pt-1">
+            <ActiveProviderBadge featureKey="workspace" moduleName="Intelligence Workspace" />
+          </div>
           <Button variant="ghost" size="icon" onClick={handleClear} title="Clear Terminal">
             <RefreshCcw className="w-4 h-4" />
           </Button>

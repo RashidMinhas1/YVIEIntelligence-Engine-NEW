@@ -5,7 +5,8 @@ import { AISettingsSchema } from "@/lib/validators";
 export async function GET() {
   try {
     const settings = getSafeAISettings();
-    return NextResponse.json(settings);
+    const safeSettings = JSON.parse(JSON.stringify(settings));
+    return NextResponse.json(safeSettings);
   } catch (error: any) {
     return NextResponse.json({ error: error.message, stack: error.stack }, { status: 500 });
   }

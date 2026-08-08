@@ -5,16 +5,26 @@ import { withCache, getCacheMetrics } from "@/lib/cache/engine";
 import { resolveChannelId, fetchCompetitorVideos } from "@/lib/youtube";
 import { generateChannelDNA, calculateDiscoveryScore } from "@/lib/discovery/engine";
 
-const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY || "";
+const DEFAULT_YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY || "";
 
 async function GET_handler(request: NextRequest) {
-  try {
-  const searchParams = request.nextUrl.searchParams;
+
+  const { searchParams } = new URL(request.url);
   const query = searchParams.get("query") || "";
   const pageToken = searchParams.get("pageToken") || undefined;
   
+  const YOUTUBE_API_KEY = searchParams.get("apiKey") || DEFAULT_YOUTUBE_API_KEY;
+
   if (!YOUTUBE_API_KEY) {
-    throw new Error("YOUTUBE_API_KEY is missing. Mock data is disabled by enterprise policy.");
+    // If no API key is provided, inform the client instead of returning mock data.
+    return NextResponse.json({
+      error: "YouTube API key is required for real data. Please enter your API key in the UI.",
+    }, { status: 400 });
+  }
+
+  if (!YOUTUBE_API_KEY && process.env.NODE_ENV !== "development") {
+    // In production, we should not proceed without a key.
+    return NextResponse.json({ error: "Missing YouTube API key." }, { status: 500 });
   }
 
   // Parse ALL filters (including new enterprise filters)
@@ -24,9 +34,13 @@ async function GET_handler(request: NextRequest) {
     minViews: searchParams.get("minViews") ? parseInt(searchParams.get("minViews")!) : undefined,
     maxViews: searchParams.get("maxViews") ? parseInt(searchParams.get("maxViews")!) : undefined,
     minAverageViews: searchParams.get("minAverageViews") ? parseInt(searchParams.get("minAverageViews")!) : undefined,
+    minRecentViews: searchParams.get("minRecentViews") ? parseInt(searchParams.get("minRecentViews")!) : undefined,
+    recentVideoCount: searchParams.get("recentVideoCount") ? parseInt(searchParams.get("recentVideoCount")!) : 10,
     minMedianViews: searchParams.get("minMedianViews") ? parseInt(searchParams.get("minMedianViews")!) : undefined,
     minTotalVideos: searchParams.get("minTotalVideos") ? parseInt(searchParams.get("minTotalVideos")!) : undefined,
     maxTotalVideos: searchParams.get("maxTotalVideos") ? parseInt(searchParams.get("maxTotalVideos")!) : undefined,
+    maxChannelAge: searchParams.get("maxChannelAge") ? parseInt(searchParams.get("maxChannelAge")!) : undefined,
+    maxChannelAgeUnit: (searchParams.get("maxChannelAgeUnit") || "years") as any,
     country: searchParams.get("country") || undefined,
     language: searchParams.get("language") || undefined,
     category: searchParams.get("category") || undefined,
@@ -57,32 +71,56 @@ async function GET_handler(request: NextRequest) {
     // 1. Resolve Query (could be a handle/URL)
     let searchTarget = query;
     let isSpecificChannel = false;
+    let exactChannel: Channel | null = null;
     
-    try {
-      const resolvedId = await resolveChannelId(query, YOUTUBE_API_KEY);
-      
-      // If we successfully resolved an ID from the query, the user wants to discover COMPETITORS for this channel,
-      // not just return the single channel itself. We need to fetch this channel's details and use its title/description to search.
-      const chanUrl = new URL("https://www.googleapis.com/youtube/v3/channels");
-      chanUrl.searchParams.set("part", "snippet,topicDetails");
-      chanUrl.searchParams.set("id", resolvedId);
-      chanUrl.searchParams.set("key", YOUTUBE_API_KEY);
-      const chanRes = await fetch(chanUrl.toString());
-      
-      if (chanRes.ok) {
-        const chanData = await chanRes.json();
-        if (chanData.items?.[0]) {
-          const snip = chanData.items[0].snippet;
-          const topics = chanData.items[0].topicDetails?.topicCategories || [];
-          
-          // Construct a highly semantic search target from the channel's essence
-          const keywords = `${snip.title} ${topics.map((t: string) => t.split('/').pop()).join(' ')}`.trim();
-          searchTarget = keywords || snip.title;
-          isSpecificChannel = true;
+    const isHandleOrUrl = query.startsWith("@") || query.startsWith("http") || query.includes("youtube.com/");
+    
+    if (isHandleOrUrl) {
+      try {
+        const resolvedId = await resolveChannelId(query, YOUTUBE_API_KEY);
+        
+        // Fetch full details for the EXACT channel
+        const chanUrl = new URL("https://www.googleapis.com/youtube/v3/channels");
+        chanUrl.searchParams.set("part", "snippet,statistics,brandingSettings,topicDetails");
+        chanUrl.searchParams.set("id", resolvedId);
+        chanUrl.searchParams.set("key", YOUTUBE_API_KEY);
+        const chanRes = await fetch(chanUrl.toString());
+        
+        if (chanRes.ok) {
+          const chanData = await chanRes.json();
+          if (chanData.items?.[0]) {
+            const item = chanData.items[0];
+            const snip = item.snippet;
+            const stats = item.statistics;
+            const branding = item.brandingSettings?.channel || {};
+            const topics = item.topicDetails?.topicCategories || [];
+            
+            exactChannel = {
+              id: item.id,
+              title: snip.title,
+              handle: snip.customUrl || snip.title,
+              description: snip.description,
+              thumbnailUrl: snip.thumbnails?.high?.url || snip.thumbnails?.default?.url,
+              bannerUrl: item.brandingSettings?.image?.bannerExternalUrl,
+              subscriberCount: parseInt(stats.subscriberCount || "0", 10),
+              videoCount: parseInt(stats.videoCount || "0", 10),
+              viewCount: parseInt(stats.viewCount || "0", 10),
+              country: snip.country || branding.country,
+              language: snip.defaultLanguage || branding.defaultLanguage,
+              publishedAt: snip.publishedAt,
+              topics: topics,
+              averageViews: Math.round(parseInt(stats.viewCount || "0", 10) / Math.max(1, parseInt(stats.videoCount || "1", 10))),
+            };
+            
+            // Set search target to find similar ones just in case
+            const keywords = `${snip.title} ${topics.map((t: string) => t.split('/').pop()).join(' ')}`.trim();
+            searchTarget = keywords || snip.title;
+            isSpecificChannel = true;
+          }
         }
+      } catch {
+        // Fallback to broad search
       }
-    } catch {
-      // It's a broad search query, leave searchTarget as the raw query
     }
 
     // 2. Fetch Initial Candidates
@@ -94,32 +132,43 @@ async function GET_handler(request: NextRequest) {
     searchUrl.searchParams.set("key", YOUTUBE_API_KEY);
     if (pageToken) searchUrl.searchParams.set("pageToken", pageToken);
 
-    const searchRes = await fetch(searchUrl.toString());
-    if (!searchRes.ok) {
-      if (searchRes.status === 403 || searchRes.status === 429) {
-        throw new Error(`YOUTUBE_QUOTA_EXCEEDED`);
+      let searchData: any = { items: [] };
+      const searchRes = await fetch(searchUrl.toString());
+      if (!searchRes.ok) {
+        if (exactChannel) {
+          console.warn("YouTube Search API failed but exact channel resolved. Skipping competitor search.");
+        } else {
+          if (searchRes.status === 403 || searchRes.status === 429) {
+            throw new Error(`YOUTUBE_QUOTA_EXCEEDED`);
+          }
+          throw new Error(`YouTube API Error: ${searchRes.statusText}`);
+        }
+      } else {
+        searchData = await searchRes.json();
       }
-      throw new Error(`YouTube API Error: ${searchRes.statusText}`);
-    }
-    const searchData = await searchRes.json();
+      
+      if ((!searchData.items || searchData.items.length === 0) && !exactChannel) {
+        return { channels: [], nextPageToken: undefined, totalResults: 0 };
+      }
+
+    const channelIds = (searchData.items || []).map((item: any) => item.id.channelId).join(",");
+    let detailsData: any = { items: [] };
     
-    if (!searchData.items || searchData.items.length === 0) {
-      return { channels: [], nextPageToken: undefined, totalResults: 0 };
+    if (channelIds) {
+      // 3. Fetch Deep Analytics for Candidates
+      const detailsUrl = new URL("https://www.googleapis.com/youtube/v3/channels");
+      detailsUrl.searchParams.set("part", "snippet,statistics,brandingSettings,topicDetails");
+      detailsUrl.searchParams.set("id", channelIds);
+      detailsUrl.searchParams.set("key", YOUTUBE_API_KEY);
+  
+      const detailsRes = await fetch(detailsUrl.toString());
+      if (!detailsRes.ok) {
+        throw new Error(`YouTube API Error: ${detailsRes.statusText}`);
+      }
+      detailsData = await detailsRes.json();
     }
-
-    const channelIds = searchData.items.map((item: any) => item.id.channelId).join(",");
     
-    // 3. Fetch Rich Metadata
-    const channelsUrl = new URL("https://www.googleapis.com/youtube/v3/channels");
-    channelsUrl.searchParams.set("part", "snippet,statistics,brandingSettings,topicDetails");
-    channelsUrl.searchParams.set("id", channelIds);
-    channelsUrl.searchParams.set("key", YOUTUBE_API_KEY);
-
-    const channelsRes = await fetch(channelsUrl.toString());
-    if (!channelsRes.ok) throw new Error("Failed to fetch channel details");
-    const channelsData = await channelsRes.json();
-
-    let candidates: Channel[] = channelsData.items.map((item: any): Channel => {
+    let candidates: Channel[] = (detailsData.items || []).map((item: any): Channel => {
       const stats = item.statistics;
       const snippet = item.snippet;
       const branding = item.brandingSettings?.channel || {};
@@ -141,21 +190,36 @@ async function GET_handler(request: NextRequest) {
       };
     });
 
-    // 4. Base Metrics Filtering
-    if (filters.minSubscribers) candidates = candidates.filter(c => c.subscriberCount >= filters.minSubscribers!);
-    if (filters.minViews) candidates = candidates.filter(c => c.viewCount >= filters.minViews!);
+    // 4. Base Metrics Soft Filtering (30% tolerance for fuzzy matching)
+    if (filters.minSubscribers) candidates = candidates.filter(c => c.subscriberCount >= filters.minSubscribers! * 0.7);
+    if (filters.minViews) candidates = candidates.filter(c => c.viewCount >= filters.minViews! * 0.7);
+    if (filters.minTotalVideos) candidates = candidates.filter(c => c.videoCount >= Math.floor(filters.minTotalVideos! * 0.7));
+    if (filters.maxTotalVideos) candidates = candidates.filter(c => c.videoCount <= Math.ceil(filters.maxTotalVideos! * 1.3));
     if (filters.country && filters.country !== "any") candidates = candidates.filter(c => c.country === filters.country);
     if (filters.language && filters.language !== "any") candidates = candidates.filter(c => c.language === filters.language);
+    
+    if (filters.maxChannelAge) {
+      const cutoff = new Date();
+      const age = filters.maxChannelAge;
+      const unit = (filters as any).maxChannelAgeUnit || "years";
+      
+      if (unit === "days") cutoff.setDate(cutoff.getDate() - age);
+      else if (unit === "weeks") cutoff.setDate(cutoff.getDate() - (age * 7));
+      else if (unit === "months") cutoff.setMonth(cutoff.getMonth() - age);
+      else cutoff.setFullYear(cutoff.getFullYear() - age);
+      
+      candidates = candidates.filter(c => new Date(c.publishedAt) >= cutoff);
+    }
 
     // 5. NLP Semantic Ranking & Advanced Metrics
-    const finalChannels: Channel[] = [];
+    let finalChannels: Channel[] = [];
     
     // Import dynamically to avoid top-level load errors if it breaks
     const { rankCandidatesSemantically } = await import('@/lib/nlp/embeddings');
     
     // Create candidate texts for semantic ranking
     const candidateTexts = candidates.map(c => `${c.title} ${c.description} ${(c.topics || []).join(" ")}`);
-    const semanticScores = await rankCandidatesSemantically(query, candidateTexts);
+    const semanticScores = await rankCandidatesSemantically(searchTarget, candidateTexts);
 
     for (let i = 0; i < candidates.length; i++) {
       const channel = candidates[i];
@@ -166,13 +230,10 @@ async function GET_handler(request: NextRequest) {
       if (simScore < minSim) continue;
 
       // Deterministic Fetch of Videos via cache deduplication
-      const { videos } = await fetchCompetitorVideos([channel.id], YOUTUBE_API_KEY, 10).catch(() => ({ videos: [] }));
+      const { videos } = await fetchCompetitorVideos([channel.id], YOUTUBE_API_KEY, filters.recentVideoCount || 10).catch(() => ({ videos: [] }));
       
       const dna = generateChannelDNA(channel, videos);
       
-      if (filters.shortsOnly && dna.longFormRatio > 0.3) continue;
-      if (filters.longFormOnly && dna.shortsRatio > 0.3) continue;
-
       const engagementRate = channel.viewCount > 0 ? (channel.viewCount / channel.subscriberCount) : 0;
       
       // Calculate Advanced Metrics
@@ -180,9 +241,23 @@ async function GET_handler(request: NextRequest) {
       const performanceRatio = channel.averageViews ? Number((avgRecentViews / channel.averageViews).toFixed(2)) : 1.0;
       const outlierScore = Math.min(Math.round(performanceRatio * 20), 100);
       
-      if (filters.minPerformanceRatio && performanceRatio < filters.minPerformanceRatio) continue;
-      if (filters.minOutlierScore && outlierScore < filters.minOutlierScore) continue;
-      if (filters.growthStatus === "Exploding" && performanceRatio < 3.0) continue;
+      let uploadFreq = "Unknown";
+      if (videos.length >= 2) {
+        const firstDate = new Date(videos[videos.length-1].publishedAt || "").getTime();
+        const lastDate = new Date(videos[0].publishedAt || "").getTime();
+        const daysDiff = (lastDate - firstDate) / (1000 * 3600 * 24);
+        const avgDays = daysDiff / (videos.length - 1);
+        if (avgDays <= 2.5) uploadFreq = "Daily";
+        else if (avgDays <= 12) uploadFreq = "Weekly";
+        else uploadFreq = "Monthly";
+      }
+      (channel as any).uploadFrequency = uploadFreq;
+      
+      if (filters.minRecentViews && avgRecentViews < filters.minRecentViews * 0.7) continue;
+      
+      if (filters.minPerformanceRatio && performanceRatio < filters.minPerformanceRatio * 0.7) continue;
+      if (filters.minOutlierScore && outlierScore < filters.minOutlierScore * 0.7) continue;
+      if (filters.growthStatus === "Exploding" && performanceRatio < 2.0) continue; // Softened Exploding check
 
       const { score, breakdown } = calculateDiscoveryScore({
         authority: Math.min((channel.subscriberCount / 1000000) * 100, 100),
@@ -213,8 +288,18 @@ async function GET_handler(request: NextRequest) {
       channel.viewerIntent = dna.viewerIntent;
       channel.evidence = evidence;
       
-      if (filters.monetizedOnly && !channel.monetized) continue;
-      if (filters.verifiedOnly && !channel.verified) continue;
+      // Soft Filtering Penalty System for Categorical Filters (Fuzzy Matching)
+      let penalty = 0;
+      if (filters.shortsOnly && dna.longFormRatio > 0.3) penalty += 20;
+      if (filters.longFormOnly && dna.shortsRatio > 0.3) penalty += 20;
+      if (filters.uploadFrequency && uploadFreq !== "Unknown" && uploadFreq.toLowerCase() !== filters.uploadFrequency.toLowerCase()) penalty += 15;
+      if (filters.monetizedOnly && !channel.monetized) penalty += 10;
+      if (filters.verifiedOnly && !channel.verified) penalty += 10;
+      
+      channel.similarityScore = Math.max(0, channel.similarityScore! - penalty);
+      
+      // Final sanity check, drop if score goes below 10 due to penalties
+      if (channel.similarityScore < 10) continue;
 
       finalChannels.push(channel);
     }
@@ -230,6 +315,60 @@ async function GET_handler(request: NextRequest) {
       else if (sortBy === "outlierScore") { aVal = a.outlierScore || 0; bVal = b.outlierScore || 0; }
       return filters.sortOrder === "asc" ? aVal - bVal : bVal - aVal;
     });
+
+    if (exactChannel) {
+       const filteredFinal = finalChannels.filter(c => c.id !== exactChannel!.id);
+       
+       const { videos } = await fetchCompetitorVideos([exactChannel.id], YOUTUBE_API_KEY, filters.recentVideoCount || 10).catch(() => ({ videos: [] }));
+       const dna = generateChannelDNA(exactChannel, videos);
+       const avgRecentViews = videos.reduce((acc, v) => acc + (parseInt(v.views) || 0), 0) / Math.max(1, videos.length);
+       const performanceRatio = exactChannel.averageViews ? Number((avgRecentViews / exactChannel.averageViews).toFixed(2)) : 1.0;
+       const outlierScore = Math.min(Math.round(performanceRatio * 20), 100);
+       
+       let uploadFreq = "Unknown";
+       if (videos.length >= 2) {
+         const firstDate = new Date(videos[videos.length-1].publishedAt || "").getTime();
+         const lastDate = new Date(videos[0].publishedAt || "").getTime();
+         const daysDiff = (lastDate - firstDate) / (1000 * 3600 * 24);
+         const avgDays = daysDiff / (videos.length - 1);
+         if (avgDays <= 2.5) uploadFreq = "Daily";
+         else if (avgDays <= 12) uploadFreq = "Weekly";
+         else uploadFreq = "Monthly";
+       }
+
+       // Ensure exact match respects soft filters (30% tolerance)
+       let isValid = true;
+       if (filters.minSubscribers && exactChannel.subscriberCount < filters.minSubscribers * 0.7) isValid = false;
+       if (filters.maxSubscribers && exactChannel.subscriberCount > filters.maxSubscribers * 1.3) isValid = false;
+       if (filters.minViews && exactChannel.viewCount < filters.minViews * 0.7) isValid = false;
+       if (filters.maxViews && exactChannel.viewCount > filters.maxViews * 1.3) isValid = false;
+       if (filters.minTotalVideos && exactChannel.videoCount < Math.floor(filters.minTotalVideos * 0.7)) isValid = false;
+       if (filters.maxTotalVideos && exactChannel.videoCount > Math.ceil(filters.maxTotalVideos * 1.3)) isValid = false;
+       if (filters.country && filters.country !== "any" && exactChannel.country !== filters.country) isValid = false;
+       if (filters.language && filters.language !== "any" && exactChannel.language !== filters.language) isValid = false;
+       if (filters.minRecentViews && avgRecentViews < filters.minRecentViews * 0.7) isValid = false;
+
+       if (isValid) {
+         exactChannel.dna = dna;
+         exactChannel.similarityScore = 100;
+         exactChannel.confidenceScore = 100;
+         exactChannel.discoveryScore = 100;
+         exactChannel.performanceRatio = performanceRatio;
+         exactChannel.outlierScore = outlierScore;
+         exactChannel.growthStatus = performanceRatio > 3 ? "Exploding" : performanceRatio > 1.5 ? "Fast Growing" : performanceRatio > 0.8 ? "Stable" : "Declining";
+         exactChannel.verified = exactChannel.subscriberCount > 100000;
+         exactChannel.monetized = exactChannel.subscriberCount > 1000 && exactChannel.videoCount > 10;
+         exactChannel.primaryNiche = dna.niche;
+         exactChannel.subNiche = dna.subNiche;
+         exactChannel.viewerIntent = dna.viewerIntent;
+         exactChannel.evidence = ["Exact match for URL/Handle provided."];
+         (exactChannel as any).uploadFrequency = uploadFreq;
+
+         finalChannels = [exactChannel, ...filteredFinal];
+       } else {
+         finalChannels = filteredFinal;
+       }
+    }
 
     return {
       channels: finalChannels.slice(0, 16),
@@ -247,41 +386,8 @@ async function GET_handler(request: NextRequest) {
       totalResults: data.totalResults,
     }
   });
-  } catch (error: any) {
-    console.error("Discovery API Error:", error);
-    if (error.message === 'YOUTUBE_QUOTA_EXCEEDED') {
-      console.warn("YouTube API quota exceeded, returning mock fallback data.");
-      return NextResponse.json({
-        data: [
-          {
-            id: "mock_quota_exceeded_1",
-            title: "Quota Exceeded (Mock)",
-            handle: "@quota_exceeded",
-            description: "The YouTube API quota has been exceeded for today. This is mock data.",
-            thumbnailUrl: "https://via.placeholder.com/150",
-            subscriberCount: 1250000,
-            videoCount: 300,
-            viewCount: 250000000,
-            country: "US",
-            language: "en",
-            averageViews: 833333,
-            similarityScore: 99,
-            confidenceScore: 95,
-            discoveryScore: 90,
-            performanceRatio: 3.5,
-            outlierScore: 100,
-            growthStatus: "Exploding",
-            verified: true,
-            monetized: true,
-            primaryNiche: "Tech",
-            evidence: ["YouTube API limit reached. Loading fallback..."]
-          }
-        ],
-        meta: { source: "mock", totalResults: 1 }
-      }, { status: 200 });
-    }
-    return NextResponse.json({ error: "Failed to fetch discovery data" }, { status: 500 });
-  }
 }
-
 export const GET = withErrorHandling(GET_handler);
+
+
+

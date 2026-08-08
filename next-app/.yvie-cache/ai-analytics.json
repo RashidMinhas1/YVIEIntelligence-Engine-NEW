@@ -1,35 +1,46 @@
 {
-  "totalRequests": 360,
-  "successCount": 126,
-  "failureCount": 234,
-  "totalTokens": 78157,
-  "totalCost": 0.07815699999999998,
-  "totalLatencyMs": 1114437,
+  "totalRequests": 809,
+  "successCount": 254,
+  "failureCount": 555,
+  "totalTokens": 186948,
+  "totalCost": 0.18694800000000003,
+  "totalLatencyMs": 2041645,
   "cacheHits": 0,
   "providerUsage": {
-    "openrouter": 360
+    "openrouter": 802,
+    "gemini": 7
   },
   "modelUsage": {
-    "openrouter/free": 21,
+    "openrouter/free": 23,
     "tencent/hy3:free": 7,
-    "poolside/laguna-xs-2.1:free": 51,
-    "cohere/north-mini-code:free": 38,
-    "nvidia/nemotron-3.5-content-safety:free": 10,
-    "nvidia/nemotron-3-ultra-550b-a55b:free": 8,
-    "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free": 7,
-    "poolside/laguna-m.1:free": 7,
-    "google/gemma-4-26b-a4b-it:free": 5,
-    "google/gemma-4-31b-it:free": 3,
-    "google/lyria-3-pro-preview": 1,
-    "poolside/laguna-s-2.1:free": 70,
+    "poolside/laguna-xs-2.1:free": 116,
+    "cohere/north-mini-code:free": 57,
+    "nvidia/nemotron-3.5-content-safety:free": 29,
+    "nvidia/nemotron-3-ultra-550b-a55b:free": 24,
+    "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free": 27,
+    "poolside/laguna-m.1:free": 9,
+    "google/gemma-4-26b-a4b-it:free": 17,
+    "google/gemma-4-31b-it:free": 13,
+    "google/lyria-3-pro-preview": 4,
+    "poolside/laguna-s-2.1:free": 135,
     "openai/gpt-oss-20b:free": 46,
-    "nvidia/nemotron-nano-12b-v2-vl:free": 59,
-    "inclusionai/ling-3.0-flash:free": 27
+    "nvidia/nemotron-nano-12b-v2-vl:free": 64,
+    "inclusionai/ling-3.0-flash:free": 147,
+    "google/gemini-2.5-flash": 4,
+    "gemini-2.5-pro": 2,
+    "gemini-2.5-flash": 2,
+    "gemini-2.0-flash": 1,
+    "gemini-2.0-flash-001": 1,
+    "gemini-2.0-flash-lite-001": 1,
+    "~google/gemini-flash-latest": 73,
+    "google/lyria-3-clip-preview": 3,
+    "nvidia/nemotron-3-super-120b-a12b:free": 3,
+    "nvidia/nemotron-3-nano-30b-a3b:free": 1
   },
   "errorsByType": {
-    "unknown": 104,
-    "rate_limit": 37,
-    "quota_exhausted": 93
+    "unknown": 160,
+    "rate_limit": 93,
+    "quota_exhausted": 302
   },
-  "lastUpdated": 1784870288877
+  "lastUpdated": 1785571867403
 }

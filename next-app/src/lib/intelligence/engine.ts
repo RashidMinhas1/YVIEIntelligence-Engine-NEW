@@ -9,8 +9,9 @@ export class IntelligenceEngine {
     videoTitle: string = "", 
     options?: { testMode?: boolean; maxTokens?: number; providerOverride?: string }
   ): Promise<ViralIntelligenceReport | any> {
+    const { AIRouter } = require("../ai/router");
     const providerName = options?.providerOverride || getActiveProviderName();
-    const provider = require("../ai/registry").getProviderInstance(providerName);
+    const provider = AIRouter.getInstance();
     
     let systemPrompt = `You are an elite, highly experienced Senior YouTube Script Director with over 10 years of experience consulting for top 1% creators.
 Your output must be strictly valid JSON matching the provided schema. Do NOT include markdown blocks (\`\`\`json\`) or any conversational text.
@@ -181,7 +182,8 @@ ${options?.testMode ? `{
     scriptContext: string,
     specificInstruction: string
   ) {
-    const provider = getAIProvider();
+    const { AIRouter } = require("../ai/router");
+    const provider = AIRouter.getInstance();
     
     const systemPrompt = `You are a YouTube Viral Optimization Engine. You generate optimized alternatives for script elements.
 Output STRICT JSON matching the schema. No markdown blocks.`;

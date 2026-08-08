@@ -5,7 +5,6 @@
 
 import crypto from "crypto";
 import { getAIProvider } from "@/lib/ai/factory";
-import { getCachedResponse, setCachedResponse } from "@/lib/ai/cache";
 import { translationRepo } from "@/lib/repository";
 import {
   TranslationRequest,
@@ -183,39 +182,8 @@ async function executeTranslation(
     glossaryHash
   );
 
-  // 5. Check prompt cache
+  // Removed manual caching because AIRouter handles deduplication.
   const systemPrompt = getTranslationSystemPrompt(request.mode);
-  const cachedResponse = getCachedResponse(cacheKey);
-  const cachedTranslation = cachedResponse?.response;
-
-  if (cachedTranslation) {
-    const qualityReport = await validateQuality(
-      request.content,
-      cachedTranslation,
-      resolvedSourceLanguage,
-      request.targetLanguage
-    );
-
-    const result: TranslationResponse = {
-      id: crypto.randomUUID(),
-      sourceContent: request.content,
-      translatedContent: cachedTranslation,
-      sourceLanguage: resolvedSourceLanguage,
-      targetLanguage: request.targetLanguage,
-      mode: request.mode,
-      contentType: request.contentType,
-      qualityReport,
-      glossaryApplied: request.glossaryId,
-      inputLength: request.content.length,
-      outputLength: cachedTranslation.length,
-      processingTimeMs: Date.now() - startTime,
-      fromCache: true,
-      createdAt: new Date().toISOString(),
-    };
-
-    await saveHistory(result, userId);
-    return result;
-  }
 
   // 6. Build translation prompt
   const userPrompt = buildTranslationPrompt(
@@ -237,9 +205,6 @@ async function executeTranslation(
     featureKey: "translation",
     responseFormat: "text",
   });
-
-  // 8. Store in prompt cache for deduplication
-  setCachedResponse(cacheKey, userPrompt, translatedContent, "auto", "auto", 0);
 
   // 9. Run quality validation
   const qualityReport = await validateQuality(

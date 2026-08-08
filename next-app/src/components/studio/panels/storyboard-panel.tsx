@@ -1,18 +1,21 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { StudioProject, ScriptSection } from "@/lib/types/studio";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
+import VirtualizedSceneList from "@/components/studio/VirtualizedSceneList";
+import SceneCard from "@/components/studio/panels/SceneCard";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
-import { Download, Clock, GripVertical, Image as ImageIcon, Video, Type, ArrowRight, Save, LayoutGrid, LayoutList, Sparkles, Upload, FileText, Wand2, ChevronDown, ChevronRight, Loader2 } from "lucide-react";
+import { Download, Clock, GripVertical, Image as ImageIcon, Video, Type, ArrowRight, Save, LayoutGrid, LayoutList, Sparkles, Upload, FileText, Wand2, ChevronDown, ChevronRight, Loader2, Lock, Unlock, Clapperboard } from "lucide-react";
+import { useAIJobManager } from "@/lib/intelligence/job-manager-context";
 import { toast } from "sonner";
-import { useJob } from "@/hooks/use-job";
 import { splitScriptIntoSentences, splitScriptIntoParagraphs } from "@/lib/utils";
+import { ActiveProviderBadge } from "@/components/ActiveProviderBadge";
 
 interface StoryboardPanelProps {
   project: StudioProject;
@@ -21,91 +24,27 @@ interface StoryboardPanelProps {
   setProject: React.Dispatch<React.SetStateAction<StudioProject>>;
 }
 
-// Helper component for AI-assisted fields
-const AiSuggestField = ({ 
-  label, 
-  value, 
-  onChange, 
-  sectionId, 
-  fieldKey, 
-  scriptChunk,
-  globalTheme
-}: { 
-  label: string; 
-  value: string; 
-  onChange: (val: string) => void; 
-  sectionId: string; 
-  fieldKey: string;
-  scriptChunk: string;
-  globalTheme: string;
-}) => {
-  const [isSuggesting, setIsSuggesting] = useState(false);
-
-  const handleSuggest = async () => {
-    if (!scriptChunk.trim()) {
-      toast.error("Add some script content first before requesting AI suggestions.");
-      return;
-    }
-    setIsSuggesting(true);
-    try {
-      const res = await fetch("/api/studio/storyboard/suggest-field", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ scriptChunk, fieldToSuggest: fieldKey, globalTheme })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      onChange(data.suggestion);
-      toast.success(`${label} suggested!`);
-    } catch (err: any) {
-      toast.error(err.message || "Suggestion failed.");
-    } finally {
-      setIsSuggesting(false);
-    }
-  };
-
-  return (
-    <div className="space-y-1.5">
-      <div className="flex items-center justify-between">
-        <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{label}</label>
-        <button 
-          onClick={handleSuggest} 
-          disabled={isSuggesting}
-          className="text-[10px] font-medium text-blue-600 hover:text-blue-700 flex items-center gap-1 transition-colors disabled:opacity-50"
-        >
-          {isSuggesting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
-          AI Suggest
-        </button>
-      </div>
-      {fieldKey === "aiPrompt" || fieldKey === "brollSuggestions" || fieldKey === "voiceOver" ? (
-        <Textarea 
-          value={value} 
-          onChange={(e) => onChange(e.target.value)} 
-          className="text-xs min-h-[60px] resize-y rounded-md" 
-          placeholder={`Enter ${label.toLowerCase()}...`}
-        />
-      ) : (
-        <Input 
-          value={value} 
-          onChange={(e) => onChange(e.target.value)} 
-          className="text-xs h-8 rounded-md" 
-          placeholder={`Enter ${label.toLowerCase()}...`}
-        />
-      )}
-    </div>
-  );
-};
+import AiSuggestField from "@/components/studio/AiSuggestField";
 
 export function StoryboardPanel({ project, updateSection, reorderSections, setProject }: StoryboardPanelProps) {
+  const globalTheme = project.globalVisualStyle || "Documentary Cinematic";
   const [viewMode, setViewMode] = useState<"grid" | "timeline">("grid");
   const [wpm, setWpm] = useState<number>(150);
   const [mode, setMode] = useState<"manual" | "ai">("manual");
+  const jobManager = useAIJobManager();
   
   // Collapsible state for scene fields
   const [expandedScenes, setExpandedScenes] = useState<Record<string, boolean>>({});
   
   // AI Generator State
   const [isGenerating, setIsGenerating] = useState(false);
+  const [generatingStep, setGeneratingStep] = useState(0);
+  const [generatingSceneCount, setGeneratingSceneCount] = useState(0);
+  // Auto map all fields state
+  const [isMappingAll, setIsMappingAll] = useState(false);
+  const [mappingProgress, setMappingProgress] = useState({ done: 0, total: 0 });
+  const mapCancelRef = useRef(false);
+
   const [aiTheme, setAiTheme] = useState(project.globalVisualStyle || "Documentary Cinematic");
   const [aiSceneCount, setAiSceneCount] = useState<number | "auto">("auto");
   const [aiChunkStyle, setAiChunkStyle] = useState<"sentences" | "paragraphs">("sentences");
@@ -118,9 +57,19 @@ export function StoryboardPanel({ project, updateSection, reorderSections, setPr
   const [isExtracting, setIsExtracting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const [isDragging, setIsDragging] = useState(false);
+
+  const handleDragStart = () => {
+    setIsDragging(true);
+  };
+
   const handleDragEnd = (result: DropResult) => {
-    if (!result.destination) return;
+    if (!result.destination) {
+      setIsDragging(false);
+      return;
+    }
     reorderSections(result.source.index, result.destination.index);
+    setIsDragging(false);
   };
 
   const calculateDuration = (text: string, currentWpm: number) => {
@@ -144,6 +93,30 @@ export function StoryboardPanel({ project, updateSection, reorderSections, setPr
 
   const toggleSceneExpanded = (id: string) => {
     setExpandedScenes(prev => ({ ...prev, [id]: prev[id] === undefined ? false : !prev[id] }));
+  };
+
+  const removeSection = (id: string) => {
+    setProject(prev => ({
+      ...prev,
+      sections: prev.sections.filter(s => s.id !== id)
+    }));
+    toast.success("Scene deleted");
+  };
+
+  const duplicateSection = (id: string) => {
+    setProject(prev => {
+      const index = prev.sections.findIndex(s => s.id === id);
+      if (index === -1) return prev;
+      const original = prev.sections[index];
+      const newSection = {
+        ...original,
+        id: crypto.randomUUID()
+      };
+      const newSections = [...prev.sections];
+      newSections.splice(index + 1, 0, newSection);
+      return { ...prev, sections: newSections };
+    });
+    toast.success("Scene duplicated");
   };
 
   const handleExport = async (format: "txt" | "md" | "json" | "docx") => {
@@ -194,10 +167,25 @@ export function StoryboardPanel({ project, updateSection, reorderSections, setPr
           content += `## Background Music\n${s.musicNotes || ""}\n\n`;
           content += `## Transitions\n${s.transitionNotes || ""}\n\n`;
           content += `## Post Production\n${s.editingNotes || ""}\n\n`;
+          
+          if (s.sceneImagePrompts && s.sceneImagePrompts.length > 0) {
+            content += `## Scene Image Prompts\n${s.sceneImagePrompts.map(p => `- ${p}`).join("\n")}\n\n`;
+          }
+
           content += `## AI Image Prompt\n\`\`\`\n${s.aiPrompt || ""}\n\`\`\`\n\n`;
-          content += `## Negative Prompt\n\`\`\`\n${s.negativePrompt || ""}\n\`\`\`\n\n`;
         }
       });
+      
+      // Append Production Assets
+      if (project.production) {
+        content += `# Production Assets\n\n`;
+        if (project.production.titles?.length) content += `## Titles\n${project.production.titles.map(t => `- ${t.title}`).join("\n")}\n\n`;
+        if (project.production.description?.full) content += `## Description\n${project.production.description.full}\n\n`;
+        if (project.production.tags?.youtubeTags?.length) content += `## Tags\n${project.production.tags.youtubeTags.join(", ")}\n\n`;
+        if (project.production.chapters?.length) content += `## Chapters\n${project.production.chapters.map(c => `${c.time} - ${c.title}`).join("\n")}\n\n`;
+        if (project.production.editingChecklist?.length) content += `## Checklist\n${project.production.editingChecklist.map(c => `- [ ] ${c.description}`).join("\n")}\n\n`;
+        if (project.production.thumbnails?.length) content += `## Thumbnail Concepts\n${project.production.thumbnails.map(t => `- ${t.title}`).join("\n")}\n\n`;
+      }
       const blob = new Blob([content], { type: "text/plain" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -361,125 +349,206 @@ export function StoryboardPanel({ project, updateSection, reorderSections, setPr
     }
   };
 
+  // Watch job status using a safe interval — only polls while generating
+  const pollerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const autoMapTriggeredRef = useRef(false);
+
+  const startPolling = () => {
+    if (pollerRef.current) return; // already polling
+    pollerRef.current = setInterval(() => {
+      if (!jobManager) return;
+      const job = jobManager.getJobStatus({ type: "project", moduleId: "storyboard" });
+      if (!job) return;
+
+      if (job.status === "queued" || job.status === "preparing") {
+        setGeneratingStep(1);
+      } else if (job.status === "analyzing") {
+        setGeneratingStep(2);
+      } else if (job.status === "generating") {
+        setGeneratingStep(3);
+      } else if (job.status === "validating" || job.status === "saving") {
+        setGeneratingStep(4);
+      } else if (job.status === "completed") {
+        setGeneratingStep(5);
+        clearInterval(pollerRef.current!);
+        pollerRef.current = null;
+        setTimeout(() => {
+          setIsGenerating(false);
+          setGeneratingStep(0);
+          setMode("manual");
+          toast.success("Storyboard mapped! Scenes are ready.");
+        }, 1200);
+      } else if (job.status === "failed") {
+        clearInterval(pollerRef.current!);
+        pollerRef.current = null;
+        setIsGenerating(false);
+        setGeneratingStep(0);
+        toast.error(job.error || "Storyboard generation failed.");
+      }
+    }, 800);
+  };
+
+  // Clean up poller on unmount
+  useEffect(() => {
+    return () => {
+      if (pollerRef.current) clearInterval(pollerRef.current);
+    };
+  }, []);
+
+  // Reset auto‑map guard when component re‑mounts (e.g., new project loads)
+  useEffect(() => {
+    autoMapTriggeredRef.current = false;
+  }, [project.id]);
   const generateAIStoryboard = async () => {
     if (!aiScript.trim()) {
       toast.error("Please provide a script to generate scenes from.");
       return;
     }
-    setIsGenerating(true);
+    
     try {
       const chunks = aiChunkStyle === "paragraphs" ? splitScriptIntoParagraphs(aiScript) : splitScriptIntoSentences(aiScript);
 
-      const res = await fetch("/api/studio/generate-storyboard", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ script: chunks, theme: aiTheme, sceneCount: chunks.length }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to generate storyboard");
+      if (!jobManager) {
+          toast.error("Job Manager not available");
+          return;
+      }
 
-      let phaseCounts: Record<string, number> = {};
-      const newSections: ScriptSection[] = [];
+      // Show progress overlay and start safe poller
+      setIsGenerating(true);
+      setGeneratingStep(1);
+      setGeneratingSceneCount(chunks.length);
+      startPolling();
 
-      chunks.forEach((chunk, chunkIdx) => {
-        // Direct 1-to-1 mapping. Fallback to the last scene if AI truncated the array.
-        const scene = data.scenes[Math.min(chunkIdx, data.scenes.length - 1)] || data.scenes[data.scenes.length - 1] || {};
-
-        let guaranteedVoiceOver = scene.voiceOver;
-        if (!guaranteedVoiceOver || guaranteedVoiceOver.trim() === "") {
-          guaranteedVoiceOver = "Standard documentary tone, engaging and clear pacing.";
-        }
-
-        const percent = chunkIdx / chunks.length;
-        let phase = "MAIN BODY";
-        if (percent < 0.15) phase = "HOOK";
-        else if (percent < 0.25) phase = "INTRO";
-        else if (percent > 0.90) phase = "CTA";
-        else if (percent > 0.75) phase = "CLIMAX";
-
-        phaseCounts[phase] = (phaseCounts[phase] || 0) + 1;
-        const styleLabel = aiChunkStyle === "sentences" ? "SENTENCE" : "DIALOGUE";
-        const sectionType = `${phase}-${styleLabel}-${phaseCounts[phase]}`;
-
-        newSections.push({
-          id: crypto.randomUUID(),
-          type: sectionType,
-          isExpanded: true,
-          ...scene,
-          content: chunk,
-          voiceOver: guaranteedVoiceOver,
-          brollSuggestions: Array.isArray(scene.brollSuggestions) ? scene.brollSuggestions : [scene.brollSuggestions]
-        });
-      });
-
-      setProject(prev => ({
-        ...prev,
-        globalVisualStyle: aiTheme,
-        sections: newSections,
-        updatedAt: new Date().toISOString()
-      }));
-      
-      toast.success("Intelligent Storyboard Generated!");
-      setMode("manual");
+      await jobManager.startJob(
+        { type: "project", moduleId: "storyboard" },
+        { script: chunks, theme: aiTheme, sceneCount: chunks.length },
+        "/api/studio/generate-storyboard"
+      );
     } catch (err: any) {
-      toast.error(err.message || "Something went wrong.");
-    } finally {
+      if (pollerRef.current) { clearInterval(pollerRef.current); pollerRef.current = null; }
       setIsGenerating(false);
+      setGeneratingStep(0);
+      toast.error(err.message || "Failed to start generation job");
     }
   };
 
-  const globalTheme = project.globalVisualStyle || "Standard YouTube Video";
+  // The fields we want to auto-fill for each scene
+  const SCENE_FIELDS: { key: keyof ScriptSection; label: string }[] = [
+    { key: "visualNotes",     label: "Visual Notes" },
+    { key: "cameraMovement",  label: "Camera Movement" },
+    { key: "cameraAngle",     label: "Camera Angle" },
+    { key: "cameraLens",      label: "Camera Lens" },
+    { key: "lighting",        label: "Lighting" },
+    { key: "colorPalette",    label: "Color Palette" },
+    { key: "mood",            label: "Mood" },
+    { key: "emotion",         label: "Emotion" },
+    { key: "onScreenText",    label: "On Screen Text" },
+    { key: "soundEffects",    label: "SFX" },
+    { key: "musicNotes",      label: "Music" },
+    { key: "transitionNotes", label: "Transition" },
+    { key: "editingNotes",    label: "Post Production" },
+    { key: "aiPrompt",        label: "AI Image Prompt" },
+  ];
+
+  const autoMapAllFields = async () => {
+    const sections = project.sections.filter(s => s.content.trim());
+    if (sections.length === 0) {
+      toast.error("No scenes to map. Generate your storyboard first.");
+      return;
+    }
+
+    const total = sections.length;
+    setIsMappingAll(true);
+    setMappingProgress({ done: 0, total });
+    mapCancelRef.current = false;
+
+    // Process scenes in parallel batches of 5
+    const BATCH_SIZE = 5;
+    let done = 0;
+
+    for (let i = 0; i < sections.length; i += BATCH_SIZE) {
+      if (mapCancelRef.current) break;
+
+      const batch = sections.slice(i, i + BATCH_SIZE);
+
+      await Promise.all(
+        batch.map(async (section) => {
+          if (mapCancelRef.current) return;
+          try {
+            const res = await fetch("/api/studio/storyboard/bulk-scene-fields", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                scriptChunk: section.content,
+                globalTheme: globalTheme
+              })
+            });
+            if (res.ok) {
+              const data = await res.json();
+              if (data.fields) {
+                updateSection(section.id, data.fields as Partial<ScriptSection>);
+              }
+            }
+          } catch { /* skip errors, continue */ }
+          done++;
+          setMappingProgress({ done, total });
+        })
+      );
+    }
+
+    setIsMappingAll(false);
+    setMappingProgress({ done: 0, total: 0 });
+    if (!mapCancelRef.current) {
+      toast.success("✅ All fields mapped!");
+    }
+  };
+
+
+  const PROGRESS_STEPS = [
+    { label: "Reading script...", icon: "📄" },
+    { label: "Analysing narrative structure...", icon: "🧠" },
+    { label: "AI mapping scenes & fields...", icon: "🎬" },
+    { label: "Validating & saving...", icon: "✅" },
+    { label: "Done! Opening storyboard...", icon: "🚀" },
+  ];
 
   return (
-    <div className="flex flex-col h-full bg-background border-r">
-      {/* Header */}
-      <div className="p-4 border-b flex justify-between items-center bg-card flex-wrap gap-4 shrink-0 shadow-sm">
-        <div className="flex items-center gap-4">
-          <div className="flex bg-muted p-1 rounded-xl shadow-inner">
-            <button 
-              onClick={() => setMode("manual")} 
-              className={`px-4 py-1.5 text-sm font-semibold rounded-lg transition-all ${mode === "manual" ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}
-            >
-              Manual Storyboard
-            </button>
-            <button 
-              onClick={() => setMode("ai")} 
-              className={`px-4 py-1.5 text-sm font-semibold rounded-lg transition-all flex items-center ${mode === "ai" ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}
-            >
-              <Sparkles className="w-4 h-4 mr-2 text-primary"/> AI Generator
-            </button>
-          </div>
-        </div>
-
-        {mode === "manual" && (
-          <div className="flex items-center gap-6">
-            <p className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <Clock className="w-4 h-4" /> Total: <span className="text-foreground">{formatTime(totalDuration)}</span>
+    <div className="h-full flex flex-col bg-background relative">
+      {/* Top Header */}
+      {/* Top Header Row */}
+      <div className="p-4 border-b border-border bg-card/50 flex flex-col gap-3 shrink-0">
+        <div className="flex justify-between items-center w-full">
+          <div>
+            <h2 className="text-sm font-semibold tracking-tight text-foreground flex items-center gap-2">
+              <Clapperboard className="w-4 h-4 text-purple-500" />
+              Storyboard Planning
+              {isGenerating && (
+                <span className="ml-2 text-xs text-blue-500 flex items-center gap-1">
+                  <Loader2 className="w-3 h-3 animate-spin" /> AI Generating...
+                </span>
+              )}
+            </h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Visualize your narrative. Break script into scenes.
             </p>
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-muted-foreground">Pacing:</span>
-              <select 
-                className="text-sm border rounded-md p-1.5 bg-background font-medium"
-                value={wpm}
-                onChange={(e) => setWpm(Number(e.target.value))}
-              >
-                <option value={120}>Slow (120 WPM)</option>
-                <option value={150}>Normal (150 WPM)</option>
-                <option value={180}>Fast (180 WPM)</option>
-              </select>
-            </div>
-            <div className="flex gap-1 bg-muted p-1 rounded-lg">
-              <Button variant={viewMode === "grid" ? "secondary" : "ghost"} size="sm" onClick={() => setViewMode("grid")} className="h-8 w-8 p-0 rounded-md">
-                <LayoutGrid className="w-4 h-4" />
-              </Button>
-              <Button variant={viewMode === "timeline" ? "secondary" : "ghost"} size="sm" onClick={() => setViewMode("timeline")} className="h-8 w-8 p-0 rounded-md">
-                <LayoutList className="w-4 h-4" />
-              </Button>
-            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <ActiveProviderBadge 
+              featureKey="studio" 
+              moduleName="Creator Studio" 
+              subFeatures={[
+                { key: 'studio.ai_task', label: 'Script Editor AI Assistant' },
+                { key: 'studio.analyze_task', label: 'Retention & Pacing Analyzer' },
+                { key: 'studio.storyboard_generate', label: 'Storyboard Scene Generator' },
+                { key: 'studio.thumbnail_ideator', label: 'Thumbnail AI Ideator' },
+                { key: 'studio.research_generate', label: 'Research & Hook Generator' }
+              ]}
+            />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="h-8 gap-2 ml-2">
-                  <Download className="w-4 h-4" /> Export
+                <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
+                  <Download className="w-3.5 h-3.5" /> Export
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
@@ -489,9 +558,203 @@ export function StoryboardPanel({ project, updateSection, reorderSections, setPr
                 <DropdownMenuItem onClick={() => handleExport("json")}>JSON Data</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+
+            <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => {
+              const dataToSave = {
+                sections: project.sections.map(s => ({
+                  id: s.id,
+                  title: s.title,
+                  content: s.content,
+                  visualNotes: s.visualNotes,
+                  environment: s.environment,
+                  background: s.background,
+                  characterNotes: s.characterNotes,
+                  composition: s.composition,
+                  cameraAngle: s.cameraAngle,
+                  cameraLens: s.cameraLens,
+                  cameraMovement: s.cameraMovement,
+                  lighting: s.lighting,
+                  colorPalette: s.colorPalette,
+                  mood: s.mood,
+                  emotion: s.emotion,
+                  onScreenText: s.onScreenText,
+                  soundEffects: s.soundEffects,
+                  musicNotes: s.musicNotes,
+                  transitionNotes: s.transitionNotes,
+                  editingNotes: s.editingNotes,
+                  aiPrompt: s.aiPrompt,
+                  sceneImagePrompts: s.sceneImagePrompts
+                }))
+              };
+              localStorage.setItem(`studio_storyboard_${project.id}`, JSON.stringify(dataToSave));
+              const blob = new Blob([JSON.stringify(dataToSave, null, 2)], { type: "application/json" });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = `storyboard_data_${project.id}.json`;
+              a.click();
+              URL.revokeObjectURL(url);
+              toast.success("Storyboard saved & downloaded!");
+            }}>
+              <Save className="w-3.5 h-3.5" /> Save Storyboard
+            </Button>
           </div>
-        )}
+        </div>
+
+        {/* Sub Toolbar Row */}
+        <div className="flex items-center justify-between flex-wrap gap-3 pt-1 border-t border-border/20">
+          <div className="flex items-center gap-3">
+            <div className="flex bg-muted p-0.5 rounded-lg shadow-inner">
+              <button 
+                onClick={() => setMode("manual")} 
+                className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${mode === "manual" ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                Manual Storyboard
+              </button>
+              <button 
+                onClick={() => setMode("ai")} 
+                className={`px-3 py-1 text-xs font-semibold rounded-md transition-all flex items-center ${mode === "ai" ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                <Sparkles className="w-3.5 h-3.5 mr-1.5 text-primary"/> AI Generator
+              </button>
+            </div>
+
+            {mode === "manual" && (
+              <>
+                <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5" /> Total: <span className="text-foreground font-semibold">{formatTime(totalDuration)}</span>
+                </p>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-medium text-muted-foreground">Pacing:</span>
+                  <select 
+                    className="text-xs border rounded-md p-1 bg-background font-medium h-7"
+                    value={wpm}
+                    onChange={(e) => setWpm(Number(e.target.value))}
+                  >
+                    <option value={120}>Slow (120 WPM)</option>
+                    <option value={150}>Normal (150 WPM)</option>
+                    <option value={180}>Fast (180 WPM)</option>
+                  </select>
+                </div>
+              </>
+            )}
+          </div>
+
+          {mode === "manual" && (
+            <div className="flex items-center gap-2">
+              <div className="flex gap-0.5 bg-muted p-0.5 rounded-md">
+                <Button variant={viewMode === "grid" ? "secondary" : "ghost"} size="sm" onClick={() => setViewMode("grid")} className="h-7 w-7 p-0 rounded">
+                  <LayoutGrid className="w-3.5 h-3.5" />
+                </Button>
+                <Button variant={viewMode === "timeline" ? "secondary" : "ghost"} size="sm" onClick={() => setViewMode("timeline")} className="h-7 w-7 p-0 rounded">
+                  <LayoutList className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+
+              {/* AI Map All Fields button */}
+              {project.sections.length > 0 && (
+                <Button
+                  variant="default"
+                  size="sm"
+                  className="h-7 gap-1.5 text-xs bg-purple-600 hover:bg-purple-700 text-white px-3"
+                  onClick={isMappingAll ? () => { mapCancelRef.current = true; } : autoMapAllFields}
+                  disabled={isGenerating}
+                >
+                  {isMappingAll ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      {mappingProgress.done}/{mappingProgress.total} — Stop
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-3.5 h-3.5" />
+                      AI Map All Fields ({project.sections.length} scenes)
+                    </>
+                  )}
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
       </div>
+
+      {/* AI Generation Progress Overlay */}
+      {isGenerating && (
+        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-background/95 backdrop-blur-sm">
+          <div className="w-full max-w-lg mx-auto px-8 text-center space-y-8">
+            {/* Animated icon */}
+            <div className="flex items-center justify-center">
+              <div className="relative w-20 h-20">
+                <div className="absolute inset-0 rounded-full border-4 border-primary/20 animate-ping" />
+                <div className="absolute inset-0 rounded-full border-4 border-primary border-t-transparent animate-spin" />
+                <div className="absolute inset-0 flex items-center justify-center text-3xl">
+                  {generatingStep > 0 ? PROGRESS_STEPS[generatingStep - 1]?.icon : "🎬"}
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="text-2xl font-bold tracking-tight">
+                {generatingStep === 5 ? "Storyboard Ready!" : "Generating AI Storyboard"}
+              </h3>
+              <p className="text-muted-foreground text-sm">
+                {generatingStep > 0 ? PROGRESS_STEPS[generatingStep - 1]?.label : "Starting..."}
+                {generatingSceneCount > 0 && generatingStep === 3 && (
+                  <span className="ml-1 font-semibold text-primary">({generatingSceneCount} scenes)</span>
+                )}
+              </p>
+            </div>
+
+            {/* Step Progress Bar */}
+            <div className="space-y-3">
+              <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
+                <div
+                  className="h-2 bg-primary rounded-full transition-all duration-700 ease-out"
+                  style={{ width: `${(generatingStep / 5) * 100}%` }}
+                />
+              </div>
+              <div className="flex justify-between">
+                {PROGRESS_STEPS.map((step, i) => (
+                  <div
+                    key={i}
+                    className={`flex flex-col items-center gap-1 transition-all duration-300 ${
+                      i + 1 <= generatingStep ? "opacity-100" : "opacity-30"
+                    }`}
+                  >
+                    <div className={`w-2 h-2 rounded-full ${
+                      i + 1 < generatingStep ? "bg-primary" :
+                      i + 1 === generatingStep ? "bg-primary animate-pulse" : "bg-muted-foreground/30"
+                    }`} />
+                    <span className="text-xs text-muted-foreground hidden sm:block">{i + 1}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Scene chunks preview */}
+            {generatingSceneCount > 0 && (
+              <div className="grid grid-cols-5 gap-1">
+                {Array.from({ length: Math.min(generatingSceneCount, 20) }).map((_, i) => (
+                  <div
+                    key={i}
+                    className={`h-1.5 rounded-full transition-all duration-300 ${
+                      generatingStep >= 3 ? "bg-primary/60" : "bg-muted"
+                    }`}
+                    style={{ animationDelay: `${i * 60}ms` }}
+                  />
+                ))}
+                {generatingSceneCount > 20 && (
+                  <span className="col-span-5 text-xs text-muted-foreground text-center">+{generatingSceneCount - 20} more scenes</span>
+                )}
+              </div>
+            )}
+
+            <p className="text-xs text-muted-foreground/60">
+              AI is auto-mapping visual, camera, art direction and post-production fields for each scene
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Main Area */}
       <ScrollArea className="flex-1 p-4 md:p-8 bg-muted/10">
@@ -637,7 +900,7 @@ export function StoryboardPanel({ project, updateSection, reorderSections, setPr
             </Button>
           </div>
         ) : (
-          <DragDropContext onDragEnd={handleDragEnd}>
+          <DragDropContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
             <Droppable droppableId="storyboard" direction={viewMode === "grid" ? "horizontal" : "vertical"}>
               {(provided: any) => (
                 <div 
@@ -645,176 +908,45 @@ export function StoryboardPanel({ project, updateSection, reorderSections, setPr
                   ref={provided.innerRef}
                   className={viewMode === "grid" ? "grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3 gap-6" : "flex flex-col gap-6 max-w-5xl mx-auto"}
                 >
-                  {project.sections.map((section, index) => {
-                    const isExpanded = expandedScenes[section.id] !== false; // true by default
-                    
-                    return (
+                  {!isDragging && project.sections.length > 20 ? (
+                    <VirtualizedSceneList
+                      items={project.sections}
+                      renderItem={(section, index) => (
+                        <SceneCard
+                          section={section}
+                          index={index}
+                          isExpanded={expandedScenes[section.id] !== false}
+                          toggleSceneExpanded={toggleSceneExpanded}
+                          updateSection={updateSection}
+                          handleContentChange={handleContentChange}
+                          globalTheme={globalTheme}
+                          wpm={wpm}
+                          onRemove={removeSection}
+                          onDuplicate={duplicateSection}
+                        />
+                      )}
+                    />
+                  ) : (
+                    project.sections.map((section, index) => (
                       <Draggable key={section.id} draggableId={section.id} index={index}>
                         {(provided: any) => (
-                          <div
-                            ref={provided.innerRef}
-                            {...provided.draggableProps}
-                            className="bg-card border border-border/60 rounded-xl shadow-sm hover:shadow-md transition-shadow flex flex-col group"
-                          >
-                            {/* Scene Header */}
-                            <div className="p-3 border-b border-border/40 bg-muted/10 flex justify-between items-center rounded-t-xl">
-                              <div className="flex items-center gap-3">
-                                <div {...provided.dragHandleProps} className="text-muted-foreground hover:text-foreground cursor-grab p-1">
-                                  <GripVertical className="w-4 h-4" />
-                                </div>
-                                <span className="text-xs font-bold px-2.5 py-1 bg-primary/10 text-primary rounded-md uppercase tracking-wider">Scene {index + 1}</span>
-                                <span className="text-sm text-muted-foreground font-mono font-medium">{formatTime(section.duration || calculateDuration(section.content, wpm))}</span>
-                              </div>
-                              <Button 
-                                variant="ghost" 
-                                size="sm" 
-                                className="h-8 text-muted-foreground hover:text-foreground"
-                                onClick={() => toggleSceneExpanded(section.id)}
-                              >
-                                {isExpanded ? "Collapse" : "Expand"}
-                              </Button>
-                            </div>
-
-                            <div className={`flex-1 flex flex-col custom-scrollbar overflow-y-auto transition-all ${isExpanded ? "p-5 space-y-6 max-h-[800px]" : "h-0 p-0 overflow-hidden"}`}>
-                              
-                              {/* Core Narrative */}
-                              <div className="space-y-4 bg-muted/5 p-4 rounded-lg border border-border/30">
-                                <div className="space-y-3">
-                                  <div className="flex items-center gap-3">
-                                    <Input 
-                                      value={section.title || ""}
-                                      onChange={(e) => updateSection(section.id, { title: e.target.value })}
-                                      className="text-base font-bold h-10 bg-transparent border-border/50 focus:bg-background"
-                                      placeholder="Scene Title..."
-                                    />
-                                  </div>
-                                  <AiSuggestField 
-                                    label="Scene Goal" 
-                                    fieldKey="sceneGoal"
-                                    value={section.sceneGoal || ""} 
-                                    onChange={(v) => updateSection(section.id, { sceneGoal: v })} 
-                                    sectionId={section.id} 
-                                    scriptChunk={section.content}
-                                    globalTheme={globalTheme}
-                                  />
-                                </div>
-
-                                <div>
-                                  <label className="text-xs font-bold text-foreground flex items-center mb-2"><Type className="w-3.5 h-3.5 mr-1.5 text-primary"/> Script Chunk / Dialogue</label>
-                                  <Textarea 
-                                    value={section.content}
-                                    onChange={(e) => handleContentChange(section.id, e.target.value)}
-                                    className="text-sm min-h-[100px] resize-y rounded-md bg-background border-border/50 focus:border-primary/50"
-                                    placeholder="Voiceover script content..."
-                                  />
-                                </div>
-
-                                <AiSuggestField 
-                                  label="Voice Over Notes (Tone, Pace, Emotion)" 
-                                  fieldKey="voiceOver"
-                                  value={section.voiceOver || ""} 
-                                  onChange={(v) => updateSection(section.id, { voiceOver: v })} 
-                                  sectionId={section.id} 
-                                  scriptChunk={section.content}
-                                  globalTheme={globalTheme}
-                                />
-                              </div>
-
-                              {/* Visuals & Camera */}
-                              <div className="space-y-4">
-                                <h4 className="text-xs font-bold text-foreground border-b pb-1 uppercase tracking-wider flex items-center"><Video className="w-3.5 h-3.5 mr-1.5 text-primary"/> Visuals & Camera</h4>
-                                
-                                <AiSuggestField 
-                                  label="Visual Description" 
-                                  fieldKey="visualNotes"
-                                  value={section.visualNotes || ""} 
-                                  onChange={(v) => updateSection(section.id, { visualNotes: v })} 
-                                  sectionId={section.id} 
-                                  scriptChunk={section.content}
-                                  globalTheme={globalTheme}
-                                />
-                                
-                                <div className="grid grid-cols-2 gap-4">
-                                  <AiSuggestField label="Camera Angle" fieldKey="cameraAngle" value={section.cameraAngle || ""} onChange={(v) => updateSection(section.id, { cameraAngle: v })} sectionId={section.id} scriptChunk={section.content} globalTheme={globalTheme}/>
-                                  <AiSuggestField label="Camera Lens" fieldKey="cameraLens" value={section.cameraLens || ""} onChange={(v) => updateSection(section.id, { cameraLens: v })} sectionId={section.id} scriptChunk={section.content} globalTheme={globalTheme}/>
-                                  <AiSuggestField label="Camera Movement" fieldKey="cameraMovement" value={section.cameraMovement || ""} onChange={(v) => updateSection(section.id, { cameraMovement: v })} sectionId={section.id} scriptChunk={section.content} globalTheme={globalTheme}/>
-                                  <AiSuggestField label="Composition" fieldKey="composition" value={section.composition || ""} onChange={(v) => updateSection(section.id, { composition: v })} sectionId={section.id} scriptChunk={section.content} globalTheme={globalTheme}/>
-                                </div>
-                              </div>
-
-                              {/* Art Direction */}
-                              <div className="space-y-4">
-                                <h4 className="text-xs font-bold text-foreground border-b pb-1 uppercase tracking-wider flex items-center"><Sparkles className="w-3.5 h-3.5 mr-1.5 text-primary"/> Art Direction</h4>
-                                
-                                <div className="grid grid-cols-2 gap-4">
-                                  <AiSuggestField label="Lighting" fieldKey="lighting" value={section.lighting || ""} onChange={(v) => updateSection(section.id, { lighting: v })} sectionId={section.id} scriptChunk={section.content} globalTheme={globalTheme}/>
-                                  <AiSuggestField label="Color Palette" fieldKey="colorPalette" value={section.colorPalette || ""} onChange={(v) => updateSection(section.id, { colorPalette: v })} sectionId={section.id} scriptChunk={section.content} globalTheme={globalTheme}/>
-                                  <AiSuggestField label="Mood" fieldKey="mood" value={section.mood || ""} onChange={(v) => updateSection(section.id, { mood: v })} sectionId={section.id} scriptChunk={section.content} globalTheme={globalTheme}/>
-                                  <AiSuggestField label="Emotion" fieldKey="emotion" value={section.emotion || ""} onChange={(v) => updateSection(section.id, { emotion: v })} sectionId={section.id} scriptChunk={section.content} globalTheme={globalTheme}/>
-                                  <AiSuggestField label="Environment" fieldKey="environment" value={section.environment || ""} onChange={(v) => updateSection(section.id, { environment: v })} sectionId={section.id} scriptChunk={section.content} globalTheme={globalTheme}/>
-                                  <AiSuggestField label="Background" fieldKey="background" value={section.background || ""} onChange={(v) => updateSection(section.id, { background: v })} sectionId={section.id} scriptChunk={section.content} globalTheme={globalTheme}/>
-                                </div>
-                                <AiSuggestField label="Character Notes" fieldKey="characterNotes" value={section.characterNotes || ""} onChange={(v) => updateSection(section.id, { characterNotes: v })} sectionId={section.id} scriptChunk={section.content} globalTheme={globalTheme}/>
-                              </div>
-
-                              {/* Post Production */}
-                              <div className="space-y-4">
-                                <h4 className="text-xs font-bold text-foreground border-b pb-1 uppercase tracking-wider flex items-center"><LayoutList className="w-3.5 h-3.5 mr-1.5 text-primary"/> Post Production</h4>
-                                
-                                <AiSuggestField label="B-Roll Suggestions" fieldKey="brollSuggestions" value={(section.brollSuggestions || []).join("\n") || section.brollNotes || ""} onChange={(v) => updateSection(section.id, { brollSuggestions: v.split("\n") })} sectionId={section.id} scriptChunk={section.content} globalTheme={globalTheme}/>
-                                
-                                <div className="grid grid-cols-2 gap-4">
-                                  <AiSuggestField label="On Screen Text" fieldKey="onScreenText" value={section.onScreenText || ""} onChange={(v) => updateSection(section.id, { onScreenText: v })} sectionId={section.id} scriptChunk={section.content} globalTheme={globalTheme}/>
-                                  <AiSuggestField label="Subtitle Style" fieldKey="subtitleStyle" value={section.subtitleStyle || ""} onChange={(v) => updateSection(section.id, { subtitleStyle: v })} sectionId={section.id} scriptChunk={section.content} globalTheme={globalTheme}/>
-                                  <AiSuggestField label="Motion Graphics" fieldKey="motionGraphics" value={section.motionGraphics || ""} onChange={(v) => updateSection(section.id, { motionGraphics: v })} sectionId={section.id} scriptChunk={section.content} globalTheme={globalTheme}/>
-                                  <AiSuggestField label="Zoom Effect" fieldKey="zoomSuggestions" value={section.zoomSuggestions || ""} onChange={(v) => updateSection(section.id, { zoomSuggestions: v })} sectionId={section.id} scriptChunk={section.content} globalTheme={globalTheme}/>
-                                  <AiSuggestField label="Transition" fieldKey="transitionSuggestions" value={section.transitionSuggestions || section.transitionNotes || ""} onChange={(v) => updateSection(section.id, { transitionSuggestions: v })} sectionId={section.id} scriptChunk={section.content} globalTheme={globalTheme}/>
-                                  <AiSuggestField label="Editing Notes" fieldKey="editingNotes" value={section.editingNotes || ""} onChange={(v) => updateSection(section.id, { editingNotes: v })} sectionId={section.id} scriptChunk={section.content} globalTheme={globalTheme}/>
-                                  <AiSuggestField label="Sound Effects" fieldKey="soundEffects" value={section.soundEffects || ""} onChange={(v) => updateSection(section.id, { soundEffects: v })} sectionId={section.id} scriptChunk={section.content} globalTheme={globalTheme}/>
-                                  <AiSuggestField label="Background Music" fieldKey="musicNotes" value={section.musicNotes || ""} onChange={(v) => updateSection(section.id, { musicNotes: v })} sectionId={section.id} scriptChunk={section.content} globalTheme={globalTheme}/>
-                                </div>
-                              </div>
-
-                              {/* AI Image Generation */}
-                              <div className="space-y-4 bg-primary/5 p-4 rounded-lg border border-primary/20">
-                                <h4 className="text-xs font-bold text-primary border-b border-primary/20 pb-1 uppercase tracking-wider flex items-center"><ImageIcon className="w-3.5 h-3.5 mr-1.5"/> AI Image Prompts</h4>
-                                
-                                <AiSuggestField 
-                                  label="Professional Image Prompt (Midjourney / FLUX)" 
-                                  fieldKey="aiPrompt"
-                                  value={section.aiPrompt || ""} 
-                                  onChange={(v) => updateSection(section.id, { aiPrompt: v })} 
-                                  sectionId={section.id} 
-                                  scriptChunk={section.content}
-                                  globalTheme={globalTheme}
-                                />
-                                
-                                <AiSuggestField 
-                                  label="Negative Prompt" 
-                                  fieldKey="negativePrompt"
-                                  value={section.negativePrompt || ""} 
-                                  onChange={(v) => updateSection(section.id, { negativePrompt: v })} 
-                                  sectionId={section.id} 
-                                  scriptChunk={section.content}
-                                  globalTheme={globalTheme}
-                                />
-                                
-                                <AiSuggestField 
-                                  label="Thumbnail Consistency Note" 
-                                  fieldKey="thumbnailConsistency"
-                                  value={section.thumbnailConsistency || ""} 
-                                  onChange={(v) => updateSection(section.id, { thumbnailConsistency: v })} 
-                                  sectionId={section.id} 
-                                  scriptChunk={section.content}
-                                  globalTheme={globalTheme}
-                                />
-                              </div>
-                            </div>
-                          </div>
+                          <SceneCard
+                            section={section}
+                            index={index}
+                            isExpanded={expandedScenes[section.id] !== false}
+                            toggleSceneExpanded={toggleSceneExpanded}
+                            updateSection={updateSection}
+                            handleContentChange={handleContentChange}
+                            globalTheme={globalTheme}
+                          wpm={wpm}
+                            provided={provided}
+                            onRemove={removeSection}
+                            onDuplicate={duplicateSection}
+                          />
                         )}
                       </Draggable>
-                    );
-                  })}
+                    ))
+                  )}
                   {provided.placeholder}
                 </div>
               )}

@@ -73,5 +73,6 @@ function fallbackStringMatch(a: string, b: string): number {
   for (const w of setA) {
     if (setB.has(w)) intersection++;
   }
-  return Math.round((intersection / Math.max(setA.size, setB.size)) * 100) || 0;
+  // Use setA.size (the query size) to prevent long candidate descriptions from diluting the score
+  return Math.round((intersection / Math.max(1, setA.size)) * 100) || 0;
 }

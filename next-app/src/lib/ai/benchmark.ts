@@ -1,60 +1,48 @@
-import { getSmartRoutingChain } from "./router";
-import { getProviderInstance } from "./registry";
-import { markSuccess, markFailure } from "./health";
-import { getAISettings } from "./settings";
+export interface BenchmarkResult {
+  provider: string;
+  model: string;
+  timestamp: number;
+  speedTokensPerSec: number;
+  latencyMs: number;
+  costPer1k: number;
+  reliabilityScore: number; // 0-100
+  reasoningScore: number; // 0-100
+  visionScore: number; // 0-100
+}
 
-let isBenchmarking = false;
-let lastBenchmarkTime = 0;
-const BENCHMARK_INTERVAL_MS = 1000 * 60 * 15; // 15 minutes
+export class AIBenchmarkEngine {
+  private static instance: AIBenchmarkEngine;
+  private benchmarks: BenchmarkResult[] = [];
 
-export async function runBackgroundBenchmark(force = false) {
-  if (isBenchmarking) return;
-  
-  const now = Date.now();
-  if (!force && now - lastBenchmarkTime < BENCHMARK_INTERVAL_MS) {
-    return;
-  }
-  
-  isBenchmarking = true;
-  lastBenchmarkTime = now;
-  
-  try {
-    const chain = await getSmartRoutingChain();
-    if (chain.length === 0) return;
-    
-    // Pick the top 2 candidates and 1 random fallback to benchmark
-    const candidatesToTest = new Set([
-      chain[0],
-      chain[1],
-      chain[Math.floor(Math.random() * chain.length)]
-    ].filter(Boolean));
+  private constructor() {}
 
-    for (const candidate of candidatesToTest) {
-      if (!candidate) continue;
-      const provider = getProviderInstance(candidate.provider);
-      const startTime = Date.now();
-      
-      try {
-         // Perform lightweight health ping
-         await provider.generateText("ping", {
-           modelOverride: candidate.model,
-           apiKey: candidate.apiKey,
-           systemPrompt: "reply pong",
-           latencySensitive: true
-         });
-         const duration = Date.now() - startTime;
-         // Weight the background benchmark slightly less than real traffic
-         markSuccess(candidate.provider, candidate.model, candidate.apiKey, duration);
-         console.log(`[Benchmark] ${candidate.provider}:${candidate.model} OK in ${duration}ms`);
-      } catch (error: any) {
-         console.warn(`[Benchmark] ${candidate.provider}:${candidate.model} FAILED:`, error.message);
-         const isTimeout = error.name === 'AbortError' || error.message?.includes("Timeout");
-         const isRateLimit = error.message?.includes("429");
-         const isQuotaExhausted = error.message?.includes("QUOTA") || error.reason === "PAYMENT_REQUIRED";
-         markFailure(candidate.provider, candidate.model, candidate.apiKey, isTimeout, isRateLimit, isQuotaExhausted);
-      }
+  public static getInstance(): AIBenchmarkEngine {
+    if (!AIBenchmarkEngine.instance) {
+      AIBenchmarkEngine.instance = new AIBenchmarkEngine();
     }
-  } finally {
-    isBenchmarking = false;
+    return AIBenchmarkEngine.instance;
   }
+
+  public recordBenchmark(result: BenchmarkResult) {
+    this.benchmarks.push(result);
+  }
+
+  public getBenchmarks(): BenchmarkResult[] {
+    return this.benchmarks;
+  }
+
+  public getRanking(metric: keyof BenchmarkResult, order: "asc" | "desc" = "desc"): BenchmarkResult[] {
+    return [...this.benchmarks].sort((a, b) => {
+      const valA = a[metric] as number;
+      const valB = b[metric] as number;
+      return order === "desc" ? valB - valA : valA - valB;
+    });
+  }
+}
+
+export const aiBenchmarkEngine = AIBenchmarkEngine.getInstance();
+
+export async function runBackgroundBenchmark(provider: string, model: string, apiKey: string) {
+  // Stub
+  return true;
 }

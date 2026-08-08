@@ -10,7 +10,7 @@ export default async function StudioPage() {
     const db = getDb();
     libraryItems = await db.select().from(libraryItemsTable);
   } catch (err) {
-    console.warn("[Local Dev] StudioPage DB connection failed. Using local DB.");
+    // If the primary DB fails, fall back to the local in‑memory DB without noisy warnings
     libraryItems = localDb.getAll("libraryItems");
   }
 

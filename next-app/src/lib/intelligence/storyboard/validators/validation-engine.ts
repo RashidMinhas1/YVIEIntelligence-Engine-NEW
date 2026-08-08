@@ -5,7 +5,36 @@ import { VisualMemoryManager } from "../utils/visual-memory-manager";
 import { ProductionScoringEngine } from "./production-scoring";
 
 export class ValidationEngine {
-  public static validateScenes(scenes: any[]): ValidationReport {
+  public static validateField(fieldGroup: 'visual' | 'camera' | 'art' | 'post', fieldData: any, previousScenes: any[]): string[] {
+    const reasons: string[] = [];
+    
+    // Convert current field values to a single lowercase string for similarity
+    const currentValues = Object.values(fieldData).filter(v => typeof v === 'string').join(' ').toLowerCase();
+    if (!currentValues.trim()) return reasons;
+
+    for (const prev of previousScenes) {
+      let prevValues = "";
+      if (fieldGroup === 'visual') prevValues = [prev.visualNotes, prev.environment, prev.background, prev.characterNotes].join(' ');
+      if (fieldGroup === 'camera') prevValues = [prev.cameraAngle, prev.cameraLens, prev.cameraMovement, prev.composition].join(' ');
+      if (fieldGroup === 'art') prevValues = [prev.location, prev.lighting, prev.colorPalette, prev.props, prev.style, prev.atmosphere].join(' ');
+      if (fieldGroup === 'post') prevValues = [prev.editingStyle, prev.transitions, prev.effects, prev.motion, prev.soundSuggestions, prev.colorGrading].join(' ');
+      
+      prevValues = prevValues.toLowerCase().trim();
+      if (!prevValues) continue;
+
+      const sim = SimilarityChecker.calculateSimilarity(currentValues, prevValues);
+      
+      // Threshold for field duplication
+      if (sim > 0.45) { // 45% similarity is very high for a specific field group
+        reasons.push(`${fieldGroup.toUpperCase()} field similarity too high (${(sim * 100).toFixed(0)}%) with a previous scene.`);
+        break;
+      }
+    }
+
+    return reasons;
+  }
+
+  public static validateScenes(scenes: any[], scriptContent: string = ""): ValidationReport {
     const memoryManager = new VisualMemoryManager();
     const invalidScenes: InvalidScene[] = [];
     const usedOnScreenText = new Set<string>();
@@ -22,6 +51,17 @@ export class ValidationEngine {
       const music = scene.musicNotes || "";
       const emotion = scene.emotion || "";
       const onScreenText = scene.onScreenText || "";
+
+      // 0. Dynamic Context Validation (Template Leakage Check)
+      const leakedTerms = ["world war", "tank", "air raid", "battlefield", "nazi", "hitler", "abandoned warehouse"];
+      const lowerScript = scriptContent.toLowerCase();
+      const allSceneText = JSON.stringify(scene).toLowerCase();
+      
+      leakedTerms.forEach(term => {
+         if (allSceneText.includes(term) && !lowerScript.includes(term)) {
+            reasons.push(`Template Leakage Detected: Unjustified term "${term}"`);
+         }
+      });
 
       // 1. On Screen Text (Never duplicate)
       if (onScreenText && usedOnScreenText.has(onScreenText.toLowerCase())) {
@@ -47,7 +87,14 @@ export class ValidationEngine {
           }
         }
       }
-
+      // 3. Field-specific duplicate validation
+      const fieldGroups: ('visual' | 'camera' | 'art' | 'post')[] = ['visual', 'camera', 'art', 'post'];
+      for (const group of fieldGroups) {
+        const fieldErrors = ValidationEngine.validateField(group, scene, previousScenes);
+        if (fieldErrors.length) {
+          reasons.push(...fieldErrors);
+        }
+      }
       // 3. Consecutive Repeat Checks
       const envRepeats = memoryManager.getRecentConsecutiveCount("environment", environment);
       if (envRepeats >= 2) reasons.push(`Environment "${environment}" repeated >2 times`);

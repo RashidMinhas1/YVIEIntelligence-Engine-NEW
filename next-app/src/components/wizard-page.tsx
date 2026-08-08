@@ -12,7 +12,7 @@ import {
 } from "@/integrations/api-client";
 import { TitleAnalysisJSON, ScriptAnalysisJSON } from "@/lib/ai/schemas";
 import { OutputViewer } from "./output-viewer";
-import { ModuleAISettings } from "@/components/shared/module-ai-settings";
+import { ActiveProviderBadge } from "./ActiveProviderBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -574,7 +574,16 @@ ${state.generatedScript}
           </p>
         </div>
         <div className="pt-1">
-          <ModuleAISettings featureKey="wizard" moduleName="Wizard" />
+          <ActiveProviderBadge 
+            featureKey="wizard" 
+            moduleName="Wizard" 
+            subFeatures={[
+              { key: 'wizard.title_analyzer', label: 'Title Analyzer' },
+              { key: 'wizard.title_generator', label: 'Title Generator' },
+              { key: 'wizard.script_analyzer', label: 'Script Analyzer' },
+              { key: 'wizard.script_generator', label: 'Script Generator' }
+            ]}
+          />
         </div>
       </div>
 

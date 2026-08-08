@@ -12,8 +12,14 @@ export default function AIAnalyticsPage() {
   useEffect(() => {
     fetch("/api/settings/ai/analytics")
       .then(r => r.json())
-      .then(d => {
-        setData(d);
+      .then(data => {
+        if (data.success) {
+          setData(data.data);
+        }
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error(err);
         setLoading(false);
       });
   }, []);

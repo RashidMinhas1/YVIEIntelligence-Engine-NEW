@@ -31,8 +31,8 @@ Return EXACTLY the following JSON structure:
     },
     "level2Titles": [
       {
-        "originalTitle": "string",
-        "psychology": "string | null",
+        "originalTitle": "string (MUST MATCH exactly one title from the input)",
+        "psychology": "string | null (Explain the psychological pattern)",
         "formula": "string | null",
         "curiosityType": "string | null",
         "hookType": "string | null",
@@ -40,7 +40,7 @@ Return EXACTLY the following JSON structure:
         "audienceTarget": "string | null",
         "whyItWorks": "string | null",
         "generatedFormats": [
-          { "copy": "string (The generated title copy)", "tip": "string (Why this works)" } // Generate exactly 3 formats per title
+          { "copy": "string (The generated title copy)", "tip": "string (Explain the psychological pattern and why this works)" } // Generate EXACTLY 7 formats for this specific title
         ],
         "confidenceScore": 0-100,
         "inferenceNote": "string | null"
@@ -49,7 +49,11 @@ Return EXACTLY the following JSON structure:
   }
 }
 
-If you cannot determine a field, return null (or an empty array for lists). Include a confidenceScore for each section. If confidence is low, add an inferenceNote explaining what was inferred.`;
+CRITICAL RULES:
+1. You MUST create an object in the 'level2Titles' array for EACH AND EVERY title provided in the input list. If 4 titles are provided, there MUST be 4 objects in 'level2Titles'. Do not skip any titles.
+2. For EVERY title, you MUST generate exactly 7 new formats in 'generatedFormats'.
+3. In the 'tip' field of 'generatedFormats', you must explicitly explain the psychological pattern being used.
+4. If you cannot determine a field, return null (or an empty array for lists). Include a confidenceScore for each section. If confidence is low, add an inferenceNote explaining what was inferred.`;
 }
 
 export function buildTitleGeneratePrompt(

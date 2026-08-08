@@ -15,7 +15,7 @@ export const VISUAL_STYLES = [
   { id: "dark-history-engraving", title: "Dark History Engraving", description: "Steel engraving cross-hatching, dramatic chiaroscuro", emoji: "⚔️", categories: ["Historical", "Art"] },
   { id: "roman-empire-painting", title: "Roman Empire Painting", description: "Fresco-style marble columns, classical Roman palette", emoji: "🏟️", categories: ["Historical", "Art"] },
   { id: "renaissance-documentary", title: "Renaissance Documentary", description: "Oil painting depth, golden ratio compositions, sfumato", emoji: "🖼️", categories: ["Historical", "Art"] },
-  { id: "ww2-military-briefing", title: "WW2 Military Briefing", description: "Mission map overlay, military stencil type, sepia tones", emoji: "🪖", categories: ["Historical", "Documentary"] },
+  { id: "tactical-briefing", title: "Tactical Briefing", description: "Mission map overlay, strategic stencil type, sepia tones", emoji: "🪖", categories: ["Historical", "Documentary"] },
   { id: "crime-investigation-board", title: "Crime Investigation Board", description: "Evidence board with red string, polaroids, case file look", emoji: "🔎", categories: ["Psychology", "Documentary"] },
   { id: "detective-case-file", title: "Detective Case File", description: "Manila folder aesthetic, typewriter font, stamped evidence", emoji: "🗂️", categories: ["Psychology", "Documentary"] },
   { id: "watercolor-motivation", title: "Watercolor Motivation", description: "Soft flowing watercolor washes, pastel bloom transitions", emoji: "💧", categories: ["Motivation", "Art"] },

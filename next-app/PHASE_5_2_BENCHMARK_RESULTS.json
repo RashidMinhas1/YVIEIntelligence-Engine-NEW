@@ -1,0 +1,23 @@
+[
+  {
+    "scenes": 10,
+    "mode": "Standard",
+    "renderTimeMs": 45,
+    "domNodes": 450,
+    "memoryUsageMB": 82
+  },
+  {
+    "scenes": 50,
+    "mode": "Virtualized",
+    "renderTimeMs": 60,
+    "domNodes": 680,
+    "memoryUsageMB": 86
+  },
+  {
+    "scenes": 100,
+    "mode": "Virtualized",
+    "renderTimeMs": 65,
+    "domNodes": 710,
+    "memoryUsageMB": 92
+  }
+]
