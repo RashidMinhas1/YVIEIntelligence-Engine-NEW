@@ -10,7 +10,8 @@ import { DiscoveryProvider } from "@/components/discovery-v2/engine/DiscoveryPro
 import Stage4ConceptMatch from "@/components/discovery-v2/stages/Stage4ConceptMatch";
 import Stage6ReverseEngineering from "@/components/discovery-v2/stages/Stage6ReverseEngineering";
 import Stage7Export from "@/components/discovery-v2/stages/Stage7Export";
-import ReportsStep from "./reports";
+import Stage8ScriptGeneration from "@/components/discovery-v2/stages/Stage8ScriptGeneration";
+import Stage5IntelligenceWorkspace from "@/components/discovery-v2/stages/Stage5IntelligenceWorkspace";
 
 export default function ChannelDiscoveryWizard() {
   const { activeSession, updateSessionState } = useSession();
@@ -27,7 +28,8 @@ export default function ChannelDiscoveryWizard() {
     { id: 4, name: "AI Concept Match" },
     { id: 5, name: "Intelligence Workspace" },
     { id: 6, name: "Reverse Engineering" },
-    { id: 7, name: "Export" },
+    { id: 7, name: "Script Generation" },
+    { id: 8, name: "Export" },
   ];
 
   return (
@@ -54,7 +56,7 @@ export default function ChannelDiscoveryWizard() {
             <Button variant="outline" size="sm" disabled={currentStep === 1} onClick={() => setStep(currentStep - 1)}>
               <ChevronLeft className="w-4 h-4 mr-1" /> Prev
             </Button>
-            <Button variant="outline" size="sm" disabled={currentStep === 7} onClick={() => setStep(currentStep + 1)}>
+            <Button variant="outline" size="sm" disabled={currentStep === 8} onClick={() => setStep(currentStep + 1)}>
               Next <ChevronRight className="w-4 h-4 ml-1" />
             </Button>
           </div>
@@ -66,9 +68,10 @@ export default function ChannelDiscoveryWizard() {
           {currentStep === 2 && <Stage2SimilarChannels />}
           {currentStep === 3 && <Stage3OutlierVideos />}
           {currentStep === 4 && <Stage4ConceptMatch />}
-          {currentStep === 5 && <ReportsStep />}
+          {currentStep === 5 && <Stage5IntelligenceWorkspace />}
           {currentStep === 6 && <Stage6ReverseEngineering />}
-          {currentStep === 7 && <Stage7Export />}
+          {currentStep === 7 && <Stage8ScriptGeneration />}
+          {currentStep === 8 && <Stage7Export />}
         </div>
       </div>
     </DiscoveryProvider>

@@ -1,17 +1,21 @@
 import React, { useState, useEffect } from "react";
 import { useSession } from "@/components/dashboard/session-context";
+import { useDiscovery } from "@/components/discovery-v2/engine/DiscoveryProvider";
 import { 
   Brain, Search, Zap, CheckCircle, Target, GitMerge, FileText, ArrowRight,
   Settings, Globe, Percent, Activity, BarChart2, Plus, ExternalLink, Play, 
-  Users, Lightbulb, PieChart, Layers
+  Users, Lightbulb, PieChart, Layers, Type, Film
 } from "lucide-react";
 
 // Types
 interface Fingerprint {
   topic: string;
-  intent: string;
-  audience: string;
-  angle: string;
+  intent?: string;
+  audience?: string;
+  angle?: string;
+  coreIntent?: string;
+  targetAudience?: string;
+  mainAngle?: string;
 }
 
 interface MatchResult {
@@ -72,6 +76,7 @@ export default function Stage4ConceptMatch() {
           language: "en",
           targetChannelName: "",
           isCustomLimit: false,
+          searchLimit: 50
         };
         changed = true;
       }
@@ -204,21 +209,45 @@ export default function Stage4ConceptMatch() {
     }
   };
 
-  const addToWorkspace = (match: MatchResult) => {
-    const video = { id: match.videoId, title: match.title, type: "video" };
-    const existingWorkspaceItems = activeSession?.filters?.workspaceItems || [];
-    const isDuplicate = existingWorkspaceItems.some((item: any) => item.id === video.id);
-        
-    if (!isDuplicate) {
-      updateSessionState({ 
-        filters: {
-          ...(activeSession?.filters || {}),
-          workspaceItems: [...existingWorkspaceItems, video]
-        }
-      });
-      setAddedToWorkspace(prev => new Set(prev).add(video.id));
-    } else {
-      alert("Already in workspace.");
+  const { state: discoveryState, updateState: updateDiscoveryState } = useDiscovery();
+  
+  const addToWorkspace = (match: any) => {
+    try {
+      const vidId = match.videoId || match.id;
+      if (!vidId) {
+        console.warn("Missing videoId in match object", match);
+        return;
+      }
+
+      const video = {
+        id: vidId,
+        videoId: vidId,
+        title: match.title || "Unknown Title",
+        thumbnail: match.thumbnailUrl || match.thumbnail || "",
+        viewCount: match.viewCount || "0",
+        publishedAt: match.publishedAt || new Date().toISOString(),
+        channelId: match.channelId || "",
+        channelTitle: match.channelTitle || "Unknown Channel",
+        conceptMatchData: match.conceptMatchData || null,
+        tags: [],
+        transcriptStatus: "Available"
+      };
+
+      const existingWorkspaceItems = activeSession?.filters?.workspaceItems || [];
+      const isDuplicate = existingWorkspaceItems.some((item: any) => item.videoId === vidId);
+          
+      if (!isDuplicate) {
+        updateSessionState({ 
+          workspaceItems: [...existingWorkspaceItems, video as any]
+        });
+        // Also update local discovery state just in case it's used elsewhere
+        updateDiscoveryState({ 
+          workspaceItems: [...existingWorkspaceItems, video as any]
+        });
+        setAddedToWorkspace(prev => new Set(prev).add(vidId));
+      }
+    } catch (err) {
+      console.error("Failed to add to workspace:", err);
     }
   };
 
