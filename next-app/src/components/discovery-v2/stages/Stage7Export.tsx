@@ -74,18 +74,12 @@ export default function Stage7Export() {
   const videosAnalyzed = workspaceItems.filter((v) => scriptAnalyses[v.videoId]);
 
   // Concept blueprints from workspace intelligence
-  const conceptVideos: any[] = workspaceIntelligence?.conceptVideos || [];
+  const finalBlueprint = workspaceIntelligence?.crossVideoAnalysis?.finalBlueprint || null;
 
   // All suggested titles gathered from blueprints
-  const allTitles: { title: string; videoSource: string }[] = useMemo(() => {
-    const out: { title: string; videoSource: string }[] = [];
-    conceptVideos.forEach((cv: any) => {
-      (cv.finalBlueprint?.suggestedTitles || []).forEach((t: string) => {
-        out.push({ title: t, videoSource: cv.title });
-      });
-    });
-    return out;
-  }, [conceptVideos]);
+  const allTitles: string[] = useMemo(() => {
+    return finalBlueprint?.suggestedTitles || [];
+  }, [finalBlueprint]);
 
   // ─── Build Markdown Export ──────────────────────────────────────────────────
   const buildMarkdown = (): string => {
@@ -106,30 +100,24 @@ export default function Stage7Export() {
       lines.push(`---`);
       lines.push(`## 📝 Title Variations (${allTitles.length})`);
       allTitles.forEach((t, i) => {
-        lines.push(`${i + 1}. ${t.title}`);
-        lines.push(`   *Source concept: ${t.videoSource}*`);
+        lines.push(`${i + 1}. ${t}`);
       });
       lines.push(``);
     }
 
-    // ── Concept Blueprints
-    if (conceptVideos.length > 0) {
+    // ── Content Blueprint
+    if (finalBlueprint) {
       lines.push(`---`);
-      lines.push(`## 💡 Content Blueprints (${conceptVideos.length})`);
-      conceptVideos.forEach((cv: any, i) => {
-        const bp = cv.finalBlueprint;
-        if (!bp) return;
-        lines.push(`### ${i + 1}. ${cv.title}`);
-        if (bp.recommendedConcept) lines.push(`**Recommended Concept:** ${bp.recommendedConcept}`);
-        if (bp.uniqueAngle) lines.push(`**Unique Angle:** ${bp.uniqueAngle}`);
-        if (bp.mainPromise) lines.push(`**Main Promise:** ${bp.mainPromise}`);
-        if (bp.titleStrategy) lines.push(`**Title Strategy:** ${bp.titleStrategy}`);
-        if (bp.hookStrategy) lines.push(`**Hook Strategy:** ${bp.hookStrategy}`);
-        if (bp.thumbnailConcept) lines.push(`**Thumbnail Concept:** ${bp.thumbnailConcept}`);
-        if (bp.storyStructure) lines.push(`**Story Structure:** ${bp.storyStructure}`);
-        if (bp.whatToAvoid) lines.push(`⚠️ **Avoid:** ${bp.whatToAvoid}`);
-        lines.push(``);
-      });
+      lines.push(`## 💡 Content Blueprint`);
+      if (finalBlueprint.recommendedConcept) lines.push(`**Recommended Concept:** ${finalBlueprint.recommendedConcept}`);
+      if (finalBlueprint.uniqueAngle) lines.push(`**Unique Angle:** ${finalBlueprint.uniqueAngle}`);
+      if (finalBlueprint.mainPromise) lines.push(`**Main Promise:** ${finalBlueprint.mainPromise}`);
+      if (finalBlueprint.titleStrategy) lines.push(`**Title Strategy:** ${finalBlueprint.titleStrategy}`);
+      if (finalBlueprint.hookStrategy) lines.push(`**Hook Strategy:** ${finalBlueprint.hookStrategy}`);
+      if (finalBlueprint.thumbnailConcept) lines.push(`**Thumbnail Concept:** ${finalBlueprint.thumbnailConcept}`);
+      if (finalBlueprint.storyStructure) lines.push(`**Story Structure:** ${finalBlueprint.storyStructure}`);
+      if (finalBlueprint.whatToAvoid) lines.push(`⚠️ **Avoid:** ${finalBlueprint.whatToAvoid}`);
+      lines.push(``);
     }
 
     // ── Outlier Videos
@@ -182,7 +170,7 @@ export default function Stage7Export() {
 
   // ─── Export Handlers ────────────────────────────────────────────────────────
   const markdown = useMemo(() => buildMarkdown(), [
-    allTitles, conceptVideos, outlierVideos, scriptAnalyses, videosWithScript
+    allTitles, finalBlueprint, outlierVideos, scriptAnalyses, videosWithScript
   ]);
 
   const handleExport = () => {
@@ -287,10 +275,9 @@ export default function Stage7Export() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {allTitles.map((t, i) => (
               <div key={i} className="group relative bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-4 hover:border-indigo-400 transition">
-                <p className="font-semibold text-sm text-gray-900 dark:text-white pr-7">"{t.title}"</p>
-                <p className="text-xs text-gray-400 mt-1 font-mono">Source: {t.videoSource}</p>
+                <p className="font-semibold text-sm text-gray-900 dark:text-white pr-7">"{t}"</p>
                 <button
-                  onClick={() => { navigator.clipboard.writeText(t.title); }}
+                  onClick={() => { navigator.clipboard.writeText(t); }}
                   className="absolute top-3 right-3 p-1 text-gray-400 hover:text-indigo-500 opacity-0 group-hover:opacity-100 transition"
                   title="Copy title"
                 >
@@ -303,61 +290,48 @@ export default function Stage7Export() {
       )}
 
       {/* ── CONTENT BLUEPRINTS ── */}
-      {conceptVideos.length > 0 && (
-        <Section title="Content Blueprints" icon={<Lightbulb size={16} className="text-yellow-500" />} badge={String(conceptVideos.length)}>
+      {finalBlueprint && (
+        <Section title="Content Blueprint" icon={<Lightbulb size={16} className="text-yellow-500" />}>
           <div className="space-y-6">
-            {conceptVideos.map((cv: any, i) => {
-              const bp = cv.finalBlueprint;
-              if (!bp) return null;
-              return (
-                <div key={i} className="bg-gradient-to-b from-gray-900 to-black rounded-2xl p-6 border border-gray-800">
-                  <div className="flex items-start gap-3 mb-5 pb-5 border-b border-gray-800">
-                    <img src={cv.thumbnail} alt="" className="w-24 h-14 rounded-lg object-cover shrink-0" />
-                    <div>
-                      <p className="font-bold text-white text-base leading-tight">{cv.title}</p>
-                      <p className="text-xs text-gray-400 mt-1 font-mono">{cv.channelTitle}</p>
-                    </div>
+            <div className="bg-gradient-to-b from-gray-900 to-black rounded-2xl p-6 border border-gray-800">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5 text-sm">
+                {[
+                  { label: "Recommended Concept", val: finalBlueprint.recommendedConcept, color: "text-white" },
+                  { label: "Unique Angle", val: finalBlueprint.uniqueAngle, color: "text-emerald-400" },
+                  { label: "Main Promise", val: finalBlueprint.mainPromise, color: "text-gray-300" },
+                  { label: "Hook Strategy", val: finalBlueprint.hookStrategy, color: "text-indigo-300" },
+                  { label: "Thumbnail Concept", val: finalBlueprint.thumbnailConcept, color: "text-yellow-300" },
+                  { label: "Story Structure", val: finalBlueprint.storyStructure, color: "text-gray-300" },
+                ].filter(x => x.val).map(({ label, val, color }) => (
+                  <div key={label}>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">{label}</p>
+                    <p className={`${color} leading-snug`}>{val}</p>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5 text-sm">
-                    {[
-                      { label: "Recommended Concept", val: bp.recommendedConcept, color: "text-white" },
-                      { label: "Unique Angle", val: bp.uniqueAngle, color: "text-emerald-400" },
-                      { label: "Main Promise", val: bp.mainPromise, color: "text-gray-300" },
-                      { label: "Hook Strategy", val: bp.hookStrategy, color: "text-indigo-300" },
-                      { label: "Thumbnail Concept", val: bp.thumbnailConcept, color: "text-yellow-300" },
-                      { label: "Story Structure", val: bp.storyStructure, color: "text-gray-300" },
-                    ].filter(x => x.val).map(({ label, val, color }) => (
-                      <div key={label}>
-                        <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">{label}</p>
-                        <p className={`${color} leading-snug`}>{val}</p>
+                ))}
+              </div>
+              {/* Suggested Titles */}
+              {finalBlueprint.suggestedTitles?.length > 0 && (
+                <div className="mt-5 pt-5 border-t border-gray-800">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-2">Suggested Titles</p>
+                  <div className="space-y-2">
+                    {finalBlueprint.suggestedTitles.map((t: string, ti: number) => (
+                      <div key={ti} className="flex items-center justify-between gap-2 bg-gray-800/50 px-3 py-2 rounded-lg border border-gray-700/50">
+                        <span className="text-sm text-white font-medium">"{t}"</span>
+                        <button onClick={() => navigator.clipboard.writeText(t)} className="text-gray-400 hover:text-white shrink-0">
+                          <Copy size={12} />
+                        </button>
                       </div>
                     ))}
                   </div>
-                  {/* Suggested Titles */}
-                  {bp.suggestedTitles?.length > 0 && (
-                    <div className="mt-5 pt-5 border-t border-gray-800">
-                      <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-2">Suggested Titles</p>
-                      <div className="space-y-2">
-                        {bp.suggestedTitles.map((t: string, ti: number) => (
-                          <div key={ti} className="flex items-center justify-between gap-2 bg-gray-800/50 px-3 py-2 rounded-lg border border-gray-700/50">
-                            <span className="text-sm text-white font-medium">"{t}"</span>
-                            <button onClick={() => navigator.clipboard.writeText(t)} className="text-gray-400 hover:text-white shrink-0">
-                              <Copy size={12} />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {bp.whatToAvoid && (
-                    <div className="mt-4 px-4 py-3 bg-red-950/30 border border-red-900/30 rounded-xl">
-                      <p className="text-[10px] font-bold text-red-500 uppercase tracking-widest mb-1">⚠ Avoid</p>
-                      <p className="text-sm text-red-300">{bp.whatToAvoid}</p>
-                    </div>
-                  )}
                 </div>
-              );
-            })}
+              )}
+              {finalBlueprint.whatToAvoid && (
+                <div className="mt-4 px-4 py-3 bg-red-950/30 border border-red-900/30 rounded-xl">
+                  <p className="text-[10px] font-bold text-red-500 uppercase tracking-widest mb-1">⚠ Avoid</p>
+                  <p className="text-sm text-red-300">{finalBlueprint.whatToAvoid}</p>
+                </div>
+              )}
+            </div>
           </div>
         </Section>
       )}
