@@ -44,7 +44,13 @@ export const DiscoveryProvider = ({ children }: { children: ReactNode }) => {
   }, [state, isLoaded]);
 
   const updateState = (updates: Partial<DiscoveryV2State>) => {
-    setState((prev) => ({ ...prev, ...updates }));
+    setState((prev) => {
+      const newState = { ...prev, ...updates };
+      if (isLoaded) {
+        localStorage.setItem("discovery_v2_project", JSON.stringify(newState));
+      }
+      return newState;
+    });
   };
 
   const nextStage = () => {

@@ -116,11 +116,11 @@ Analyze each candidate and return JSON matching exactly this schema:
               const topicLower = fingerprint.topic.toLowerCase();
               const keywordsLower = (fingerprint.keywords || []).map((k: string) => k.toLowerCase());
               
-              let baseScore = 50; 
+              let baseScore = 60; // Increased from 50 so 1 keyword match passes 75% threshold
               let matchedReasons = ["Simulated semantic analysis"];
               
               if (titleLower.includes(topicLower)) {
-                baseScore += 35;
+                baseScore += 25;
                 matchedReasons.push("Strong topic alignment in title");
               } else {
                  let keywordMatches = 0;

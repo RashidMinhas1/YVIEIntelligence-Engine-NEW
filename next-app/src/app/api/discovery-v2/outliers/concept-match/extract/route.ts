@@ -49,24 +49,29 @@ Return ONLY a valid JSON object matching this schema exactly:
       const cleanJson = aiRes.replace(/```json/g, '').replace(/```/g, '').trim();
       fingerprint = JSON.parse(cleanJson);
     } catch (apiError: any) {
-      console.warn("AI extraction failed (likely 402), using fallback:", apiError.message);
+      console.warn("AI extraction failed (likely 402), using dynamic fallback:", apiError.message);
+      
+      // Extract keywords from the title by splitting on spaces and removing common words
+      const words = title.replace(/[^\w\s]/gi, '').split(/\s+/).filter((w: string) => w.length > 3);
+      const mainKeywords = words.length > 0 ? words.slice(0, 4) : ["video", "concept"];
+      
       fingerprint = {
-        topic: "Unexplained Phenomenon",
-        coreConcept: "A deep dive into a mysterious internet event.",
-        coreIntent: "Solve a mystery & be entertained",
-        problemBeingSolved: "Satisfies curiosity about strange occurrences.",
-        targetAudience: "Mystery & internet culture fans",
-        mainAngle: "Investigative documentary style",
-        storyPremise: "Something weird happened, here is the investigation.",
-        keyEntities: ["Mystery", "Internet", "Investigation"],
-        keywords: ["unexplained", "mystery", "bizarre"],
-        synonyms: ["weird internet", "bizarre online event"],
-        relatedTerms: ["true crime", "creepy video"],
+        topic: title.split(/[:|]/)[0].trim() || title,
+        coreConcept: `A deep dive into the concept of ${title}`,
+        coreIntent: "Provide entertainment and information about the topic",
+        problemBeingSolved: "Satisfies curiosity about " + mainKeywords.join(" "),
+        targetAudience: "Fans of " + channelTitle + " and similar content",
+        mainAngle: "Informative and engaging presentation",
+        storyPremise: "Exploring the interesting aspects of the topic.",
+        keyEntities: mainKeywords,
+        keywords: mainKeywords,
+        synonyms: mainKeywords,
+        relatedTerms: mainKeywords,
         localizedTerms: [],
-        importantPhrases: ["nobody can explain"],
+        importantPhrases: [title],
         emotionalTrigger: "Curiosity",
         curiosityMechanism: "Unresolved question",
-        contentFormat: "Documentary",
+        contentFormat: "Documentary/Explainer",
         contentCategory: "Entertainment"
       };
     }

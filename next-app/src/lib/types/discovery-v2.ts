@@ -55,6 +55,16 @@ export interface V2Channel {
   viewsPerSubRatio?: number;
 }
 
+export interface UserVideoScript {
+  status: "not_added" | "added";
+  source: "user_paste" | "user_upload";
+  text: string;
+  fileName?: string;
+  wordCount: number;
+  characterCount: number;
+  updatedAt: string;
+}
+
 export interface V2Video {
   id: string;
   videoId: string;
@@ -100,6 +110,9 @@ export interface V2Video {
   competitionBadge?: "Low" | "Medium" | "High";
   trendBadge?: "Emerging" | "Growing" | "Peak" | "Declining" | "Stable";
   conceptMatchData?: ConceptMatchData;
+
+  // New field for user provided script
+  userScript?: UserVideoScript;
 }
 
 export interface DashboardSummaryData {
@@ -519,6 +532,145 @@ export interface GeneratedPrompt {
   content: string;
 }
 
+export interface IndividualVideoIntelligence {
+  videoId: string;
+  sourceVideoId: string;
+  channelId: string;
+  analysisTimestamp: string;
+  
+  titleIntelligence: {
+    structure: string;
+    formula: string;
+    curiosityMechanism: string;
+    emotionalTrigger: string;
+    informationGap: string;
+    powerWords: string[];
+    length: string;
+    promise: string;
+  };
+  hookIntelligence: {
+    hookType: string;
+    first10Seconds: string;
+    curiosityTrigger: string;
+    problemFraming: string;
+    emotionalTrigger: string;
+    retentionMechanism: string;
+  };
+  thumbnailIntelligence: {
+    mainSubject: string;
+    composition: string;
+    textUsage: string;
+    emotion: string;
+    contrast: string;
+    curiosity: string;
+    visualPromise: string;
+    difference: string;
+  };
+  storyIntelligence: {
+    introduction: string;
+    setup: string;
+    conflict: string;
+    investigation: string;
+    escalation: string;
+    payoff: string;
+    conclusion: string;
+    cta: string;
+  };
+  formatIntelligence: {
+    formatType: string;
+    pacing: string;
+    narrativeStyle: string;
+    informationDensity: string;
+    emotionalIntensity: string;
+    audienceAppeal: string;
+    uniqueAngle: string;
+  };
+  strengths: string[];
+  weaknesses: string[];
+}
+
+export interface WorkspaceIntelligenceData {
+  status: 'Not Analyzed' | 'Analyzing' | 'Partial' | 'Complete' | 'Failed';
+  timestamp: string | null;
+  workspaceFingerprint: string | null;
+  
+  individualAnalysis: Record<string, IndividualVideoIntelligence>;
+  
+  crossVideoAnalysis: {
+    patterns: {
+      pattern: string;
+      frequency: string;
+      videosUsingIt: string[];
+      performanceAssociation: string;
+      whyItMatters: string;
+    }[];
+    performanceInsights: {
+      topPerformer: string;
+      mostEfficient: string;
+      mostUndervalued: string;
+      mostReplicablePattern: string;
+      weakestPerformer: string;
+      comparisons: any[];
+    };
+    conceptEvolution: {
+      versions: {
+        versionLabel: string;
+        videoId: string;
+        title: string;
+        whatChanged: string;
+      }[];
+    };
+    audienceIntelligence: {
+      primaryAudience: string;
+      secondaryAudience: string;
+      audienceIntent: string;
+      painPoints: string[];
+      curiosityDrivers: string[];
+      emotionalTriggers: string[];
+      expectedPromise: string;
+      whatTheyWant: string;
+    };
+    contentGaps: {
+      missingAngles: string[];
+      missingSubtopics: string[];
+      unansweredQuestions: string[];
+      opportunityStatement: string;
+    };
+    opportunityScore: {
+      score: number; // 0-100
+      status: string; // HIGH, MEDIUM, LOW
+      demand: number;
+      competition: number;
+      gap: number;
+      uniqueness: number;
+      performanceSignal: number;
+      explanation: string;
+    };
+    finalBlueprint: {
+      recommendedTopic: string;
+      recommendedConcept: string;
+      uniqueAngle: string;
+      targetAudience: string;
+      mainPromise: string;
+      titleStrategy: string;
+      suggestedTitles: string[];
+      hookStrategy: string;
+      hookExamples: string[];
+      thumbnailStrategy: string;
+      thumbnailConcept: string;
+      storyStructure: string;
+      emotionalStrategy: string;
+      retentionStrategy: string;
+      ctaStrategy: string;
+      competitorsDoing: string;
+      competitorsNotDoing: string;
+      userShouldDoDifferently: string;
+      whatToAvoid: string;
+      finalDecision: string; // YES, NO, MAYBE
+    } | null;
+  } | null;
+}
+
 export interface DiscoveryV2State {
   version: number;
   projectName: string;
@@ -532,6 +684,8 @@ export interface DiscoveryV2State {
   outlierVideos: V2Video[];
   conceptMatchedVideos: V2Video[];
   workspaceItems: V2Video[]; // Unified workspace
+  
+  workspaceIntelligence: WorkspaceIntelligenceData;
   
   // Reports
   reports: Record<string, IntelligenceReport>;
@@ -550,7 +704,66 @@ export const INITIAL_STATE: DiscoveryV2State = {
   outlierVideos: [],
   conceptMatchedVideos: [],
   workspaceItems: [],
+  workspaceIntelligence: {
+    status: 'Not Analyzed',
+    timestamp: null,
+    workspaceFingerprint: null,
+    individualAnalysis: {},
+    crossVideoAnalysis: null
+  },
   reports: {},
   masterBlueprint: null,
   generatedPrompts: []
 };
+
+export interface ScriptAnalysisResult {
+  videoId: string;
+  hookStrength: number;
+  pacingScore: number;
+  infoDensityScore: number;
+  retentionScore: number;
+  metrics: {
+    wordCount: number;
+    estimatedDurationMins: number;
+  };
+  breakdown: {
+    hookType: string;
+    opening: string;
+    storyStructure: string;
+    narrativeFlow: string;
+    emotionalTriggers: string[];
+    curiosityLoops: string[];
+    patternInterrupts: string[];
+    retentionTechniques: string[];
+    cta: string;
+    weakSections: string[];
+    strongSections: string[];
+    repetitiveSections: string[];
+    missingInformation: string[];
+    uniqueElements: string[];
+  };
+  competitorComparison: {
+    whatCompetitorsDo: string;
+    whatUserDoes: string;
+    competitorAdvantage: string;
+    userAdvantage: string;
+    missingFromUser: string;
+    overusedByCompetitors: string;
+    opportunity: string;
+  };
+  differenceEngine: {
+    hookDifference: string;
+    storyDifference: string;
+    angleDifference: string;
+    pacingDifference: string;
+    infoDifference: string;
+    ctaDifference: string;
+    emotionalDifference: string;
+  };
+  improvementStrategy: {
+    problems: string[];
+    missedOpportunities: string[];
+    recommendedChanges: string[];
+    improvedStructure: string;
+  };
+}
